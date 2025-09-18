@@ -22,6 +22,9 @@ dependencies = [
     'chromadb',
     'onnxruntime==1.15.0',
     "multiprocess>=0.70.17",
+    "python-telegram-bot",
+    "python-dotenv",
+    "requests",
 ]
 
 [project.urls]
