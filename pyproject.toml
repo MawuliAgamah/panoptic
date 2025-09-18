@@ -3,7 +3,7 @@ name = "knowledgeAgent"
 version = "0.1.0"
 description = "A module for creating and managing knowledge graphs with AI"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     'langchain_openai',
     'langchain-ollama',
@@ -25,6 +25,9 @@ dependencies = [
     "python-telegram-bot",
     "python-dotenv",
     "requests",
+    "pytest",
+    "neo4j",
+    "kg-gen>=0.1.6",
 ]
 
 [project.urls]

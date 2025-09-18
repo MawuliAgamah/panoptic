@@ -1,6 +1,6 @@
-from src.knowledgeAgent.document.preprocessing.parser import _get_parser_for_type
-from src.knowledgeAgent.document.manager.document_manager import DocumentManager
-from src.knowledgeAgent.core.db.sql_lite.service import SQLLiteService
+from knowledge_graph.document.preprocessing.parser import _get_parser_for_type
+from knowledge_graph.document.manager.document_manager import DocumentManager
+from knowledge_graph.core.db.sql_lite.service import SQLLiteService
 import logging
 
 class DocumentProcessor:
@@ -47,6 +47,10 @@ class DocumentProcessor:
             if document is None:
                 self.logger.error("Document manager returned None")
                 return None
+
+            # Clean document content after loading
+            document = self.document_manager.clean_document(document)
+
             self.logger.info(f"Document initialized with ID: {document.id}")
             return document
         except Exception as e:

@@ -1,0 +1,12 @@
+Knowledge Graph Extraction Results
+Document: An Illustrated Book of Bad Arguments
+Processed: 2025-09-19 00:39:42.235274
+
+Entities (5):
+- Arguing from consequences
+- Logical fallacy
+- Prose
+- Straw Man
+- Terseness
+
+Relations (0):

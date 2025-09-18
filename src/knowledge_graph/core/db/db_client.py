@@ -1,63 +1,78 @@
-from src.knowledgeAgent.document.models.document import Document
-from src.knowledgeAgent.document.models.metadata import DocumentMetadata
-from src.knowledgeAgent.document.models.chunk import TextChunk, ChunkMetadata
+from knowledge_graph.document.models.document import Document
+from knowledge_graph.document.models.metadata import DocumentMetadata
+from knowledge_graph.document.models.chunk import TextChunk, ChunkMetadata
+from knowledge_graph.core.db.neo4j.service import Neo4jService
 from datetime import datetime
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DatabaseClient:
-    """Client for database operations"""
-    
+    """Dual database client for SQLite (documents/chunks) and Neo4j (knowledge graphs)"""
+
     def __init__(self, db_config):
-        self.db_service = None
+        self.sqlite_service = None
+        self.neo4j_service = None
         self.db_config = db_config
-        self._configure_database(db_config)
-        
-    def _configure_database(self, db_config):
-        """Configure the database based on type"""
-        db_type = db_config.get('db_type')
-        
-        if db_type == 'sqlite':
-            from src.knowledgeAgent.core.db.sql_lite.service import SQLLiteService
-            self.db_service = SQLLiteService(db_path=db_config.get('db_location'))
-        # keep comments for future reference
-        # elif db_type == 'postgres':
-            # from src.knowledgeAgent.core.db.postgres import PostgresDB
-            # self.db_service = PostgresDB(
-            #     host=db_config.get('host'),
-            #     port=db_config.get('port'),
-            #     database=db_config.get('database'),
-            #     user=db_config.get('username'),
-            #     password=db_config.get('password')
-            # )
-        else:
-            raise ValueError(f"Unsupported database type: {db_type}")
+        self._configure_databases(db_config)
+
+    def _configure_databases(self, db_config):
+        """Configure both SQLite and Neo4j databases"""
+
+        # Configure SQLite for documents and chunks
+        sqlite_config = db_config.get('sqlite', {})
+        if sqlite_config:
+            from knowledge_graph.core.db.sql_lite.service import SQLLiteService
+            self.sqlite_service = SQLLiteService(db_path=sqlite_config.get('db_location'))
+            logger.info("SQLite service configured")
+
+        # Configure Neo4j for knowledge graphs
+        neo4j_config = db_config.get('neo4j', {})
+        if neo4j_config:
+            try:
+                self.neo4j_service = Neo4jService(neo4j_config)
+                logger.info("Neo4j service configured")
+            except Exception as e:
+                logger.warning(f"Neo4j service configuration failed: {e}. Knowledge graph features will be unavailable.")
+                self.neo4j_service = None
+
+        if not self.sqlite_service and not self.neo4j_service:
+            raise ValueError("At least one database service must be configured")
         
     
+    # Document operations (SQLite)
     def save_document(self, document):
-        """Save document"""
-        if not self.db_service:
-            raise ValueError("Database service not initialized")
-        return self.db_service.save_document(document)
-    
+        """Save document to SQLite"""
+        if not self.sqlite_service:
+            raise ValueError("SQLite service not initialized")
+        return self.sqlite_service.save_document(document)
+
     def delete_document(self, document_id):
-        """Delete document"""
-        if not self.db_service:
-            raise ValueError("Database service not initialized")
-        return self.db_service.delete_document(document_id)
-    
+        """Delete document from SQLite and Neo4j"""
+        results = {}
+
+        if self.sqlite_service:
+            results['sqlite'] = self.sqlite_service.delete_document(document_id)
+
+        if self.neo4j_service:
+            results['neo4j'] = self.neo4j_service.delete_document_graph(document_id)
+
+        return results
+
     def get_chunks(self, document_id):
-        """Get document chunks"""
-        if not self.db_service:
-            raise ValueError("Database service not initialized")
-        return self.db_service.get_chunks(document_id)
-    
+        """Get document chunks from SQLite"""
+        if not self.sqlite_service:
+            raise ValueError("SQLite service not initialized")
+        return self.sqlite_service.get_chunks(document_id)
+
     def get_document(self, document_id):
         """Get document by ID and return as Document model"""
-        if not self.db_service:
-            raise ValueError("Database service not initialized")
-        
-        # Get document data from database
-        doc_data = self.db_service.retrieve_document(document_id)
+        if not self.sqlite_service:
+            raise ValueError("SQLite service not initialized")
+
+        # Get document data from SQLite
+        doc_data = self.sqlite_service.retrieve_document(document_id)
         if not doc_data:
             return None
         
@@ -174,29 +189,113 @@ class DatabaseClient:
         
         return document
 
+    # Knowledge graph operations (Neo4j)
+    def save_knowledge_graph(self, document_id, kg_graph):
+        """Save knowledge graph to Neo4j"""
+        if not self.neo4j_service:
+            logger.warning(f"Neo4j service not available. Cannot save knowledge graph for document {document_id}")
+            return False
+        return self.neo4j_service.save_knowledge_graph(document_id, kg_graph)
+
+    def get_document_entities(self, document_id):
+        """Get all entities for a document from Neo4j"""
+        if not self.neo4j_service:
+            logger.warning("Neo4j service not available")
+            return []
+        return self.neo4j_service.get_document_entities(document_id)
+
+    def get_document_relationships(self, document_id):
+        """Get all relationships for a document from Neo4j"""
+        if not self.neo4j_service:
+            logger.warning("Neo4j service not available")
+            return []
+        return self.neo4j_service.get_document_relationships(document_id)
+
+    def search_entities(self, search_term, limit=10):
+        """Search entities across knowledge graph"""
+        if not self.neo4j_service:
+            logger.warning("Neo4j service not available")
+            return []
+        return self.neo4j_service.search_entities(search_term, limit)
+
+    def get_entity_connections(self, entity_name, depth=1):
+        """Get connections for an entity"""
+        if not self.neo4j_service:
+            logger.warning("Neo4j service not available")
+            return []
+        return self.neo4j_service.get_entity_connections(entity_name, depth)
+
+    def get_graph_statistics(self):
+        """Get knowledge graph statistics"""
+        if not self.neo4j_service:
+            logger.warning("Neo4j service not available")
+            return {"entities": 0, "documents": 0, "relationships": 0}
+        return self.neo4j_service.get_graph_statistics()
+
+    def delete_document_knowledge_graph(self, document_id):
+        """Delete knowledge graph data for a document"""
+        if not self.neo4j_service:
+            logger.warning("Neo4j service not available")
+            return False
+        return self.neo4j_service.delete_document_graph(document_id)
+
+    def test_connections(self):
+        """Test both database connections"""
+        results = {}
+
+        if self.sqlite_service:
+            try:
+                # Test SQLite by attempting a simple query
+                results['sqlite'] = True
+            except Exception as e:
+                logger.error(f"SQLite connection test failed: {e}")
+                results['sqlite'] = False
+
+        if self.neo4j_service:
+            results['neo4j'] = self.neo4j_service.test_connection()
+        else:
+            results['neo4j'] = False
+
+        return results
+
+    # Legacy ontology methods (for backward compatibility - delegate to SQLite)
     def save_entities_and_relationships(self, document_id, chunk_id, ontology):
-        """Save entities and relationships extracted from ontology"""
-        if not self.db_service:
-            raise ValueError("Database service not initialized")
-        return self.db_service.save_entities_and_relationships(document_id, chunk_id, ontology)
-    
+        """Save entities and relationships (legacy method - uses SQLite)"""
+        if not self.sqlite_service:
+            raise ValueError("SQLite service not initialized")
+        return self.sqlite_service.save_entities_and_relationships(document_id, chunk_id, ontology)
+
     def get_document_ontology(self, document_id):
-        """Get all entities and relationships for a document"""
-        if not self.db_service:
-            raise ValueError("Database service not initialized")
-        return self.db_service.get_document_ontology(document_id)
-    
+        """Get document ontology (legacy method - uses SQLite)"""
+        if not self.sqlite_service:
+            raise ValueError("SQLite service not initialized")
+        return self.sqlite_service.get_document_ontology(document_id)
+
     def get_chunk_ontology(self, chunk_id):
-        """Get all entities and relationships for a chunk"""
-        if not self.db_service:
-            raise ValueError("Database service not initialized")
-        return self.db_service.get_chunk_ontology(chunk_id)
-    
+        """Get chunk ontology (legacy method - uses SQLite)"""
+        if not self.sqlite_service:
+            raise ValueError("SQLite service not initialized")
+        return self.sqlite_service.get_chunk_ontology(chunk_id)
+
     def save_document_ontology(self, document_id, ontology):
-        """Save full document ontology"""
-        if not self.db_service:
-            raise ValueError("Database service not initialized")
-        return self.db_service.save_document_ontology(document_id, ontology)
+        """Save document ontology (legacy method - uses SQLite)"""
+        if not self.sqlite_service:
+            raise ValueError("SQLite service not initialized")
+        return self.sqlite_service.save_document_ontology(document_id, ontology)
+
+    def close(self):
+        """Close all database connections"""
+        if self.sqlite_service and hasattr(self.sqlite_service, 'close'):
+            self.sqlite_service.close()
+
+        if self.neo4j_service:
+            self.neo4j_service.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
 
         
