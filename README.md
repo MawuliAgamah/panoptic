@@ -7,40 +7,9 @@
 
 ## Overview
 
-KnowledgeAgent is an AI-powered system that transforms unstructured documents into intelligent knowledge graphs. The system leverages multiple Large Language Models working in collaboration to extract, validate, and enrich semantic relationships from text, creating a comprehensive knowledge representation suitable for advanced AI applications.
+AI-powered system that transforms unstructured documents into intelligent knowledge graphs. The system leverages multiple Large Language Models working in collaboration to extract, validate, and enrich semantic relationships from text, creating a comprehensive knowledge representation suitable for advanced AI applications.
 
-## 🏗️ Architecture 
-
-### Multi-Agent Knowledge Extraction
-- **Collaborative AI Pipeline**: Three specialized AutoGen agents work together:
-  - `graph_constructor`: Extracts subject-predicate-object triplets with inference capabilities
-  - `graph_validator`: Validates relationships and identifies missing connections
-  - `graph_enricher`: Refines and enhances the final knowledge graph
-
-### Intelligent Document Processing
-- **Adaptive Chunking**: Context-aware segmentation that preserves document structure
-  - Structured Markdown chunker respects heading hierarchies
-  - Recursive character splitter for non-structured content
-  - Automatic strategy selection based on content analysis
-- **Multi-format Support**: Extensible parser framework for various document types
-
-### Scalable Data Architecture
-- **Multi-database Integration**: 
-  - SQLite for document metadata and caching
-  - Neo4j/Nebula Graph for knowledge graph storage
-  - ChromaDB for vector embeddings and semantic search
-- **Service-Oriented Design**: Modular services with clear separation of concerns
-
-## Key Features
-
-- **Multi-Agent AI System**: Collaborative LLM agents for robust knowledge extraction
-- **Smart Document Processing**: Hierarchical chunking that preserves semantic context
-- **Knowledge Graph Construction**: Automated extraction of entities and relationships
-- **Semantic Search**: Vector-based similarity search across document collections
-- **High-Performance Architecture**: Asynchronous processing with connection pooling
-- **Enterprise-Ready**: Comprehensive logging, error handling, and configuration management
-
-## 🏛️ System Architecture
+## System Architecture
 
 ```mermaid
 graph TB
@@ -79,7 +48,7 @@ graph TB
     LS --> VDB
 ```
 
-## 📋 Technical Requirements
+## Technical Requirements
 
 - **Python**: 3.9+
 - **LLM API**: OpenAI API key required
@@ -90,7 +59,7 @@ graph TB
 - **Databases**: `neo4j-python`, `chromadb`, `sqlite3`
 - **Processing**: `pydantic`, `nltk`, `unstructured`
 
-## 🔧 Installation & Setup
+## Installation & Setup
 
 ### Quick Start
 ```bash
@@ -106,7 +75,7 @@ cp config.example .env
 # Edit .env file with your actual API keys and configuration
 ```
 
-### Production Deployment
+### Docker setup
 ```bash
 # Install from PyPI (when published)
 pip install knowledgeAgent
@@ -118,7 +87,7 @@ docker-compose up -d
 python -c "from knowledgeAgent.api.client import KnowledgeGraphClient; print('✅ Installation successful')"
 ```
 
-## 💻 Usage Examples
+## Examples
 
 ### Basic Document Processing
 ```python
@@ -151,39 +120,7 @@ document_id = client.add_document(
 client.extract_document_ontology(document_id)
 ```
 
-### Multi-Agent Collaboration
-The system implements a multi-agent architecture where specialized AI agents collaborate to ensure high-quality knowledge extraction:
-
-```python
-# Three agents work in sequence:
-# 1. Constructor extracts initial triplets
-# 2. Validator checks accuracy and finds missing relationships  
-# 3. Enricher refines and enhances the final output
-
-def extract_ontology(document: str) -> dict:
-    """Multi-agent knowledge extraction with validation"""
-    group_chat = GroupChat(
-        agents=[graph_constructor, graph_validator, graph_enricher],
-        max_round=3,
-        speaker_selection_method="round_robin"
-    )
-    # ... implementation details
-```
-
-### Intelligent Chunking Strategy
-Context-aware document segmentation that preserves semantic meaning:
-
-```python
-class StructuredMarkdownChunker:
-    """Respects document hierarchy for optimal chunking"""
-    
-    def chunk_section(self, section: MarkdownSection, max_size: int):
-        # Recursive chunking that maintains context
-        # Preserves header hierarchies and relationships
-        # Falls back to character-based splitting when needed
-```
-
-## 📄 License
+## License
 MIT License - see [LICENSE.txt](LICENSE.txt) for details.
 
 
