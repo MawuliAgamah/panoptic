@@ -18,6 +18,8 @@ cache/
 logs/
 temp/
 build/
+database/
+development/
 
 # Python
 __pycache__/
