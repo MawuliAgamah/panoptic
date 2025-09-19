@@ -6,10 +6,10 @@ from langchain.chains import LLMChain
 import os
 import logging
 
-from src.knowledgeAgent.llm.models.document_models import TopicModel, KeyWordModel
-from src.knowledgeAgent.llm.prompts.templates import TOPICS_EXTRACTION_PROMPT, KEYWORD_EXTRACTION_PROMPT
-from src.knowledgeAgent.llm.models.kg_extraction_models import ChunkKnowledgeGraphExtraction
-from src.knowledgeAgent.llm.prompts.templates import ONTOLOGY_EXTRACTION_PROMPT
+from knowledge_graph.llm.models.document_models import TopicModel, KeyWordModel
+from knowledge_graph.llm.prompts.templates import TOPICS_EXTRACTION_PROMPT, KEYWORD_EXTRACTION_PROMPT
+from knowledge_graph.llm.models.kg_extraction_models import ChunkKnowledgeGraphExtraction
+from knowledge_graph.llm.prompts.templates import ONTOLOGY_EXTRACTION_PROMPT
 
 
 class LLMService:

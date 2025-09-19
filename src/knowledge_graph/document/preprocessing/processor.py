@@ -5,8 +5,12 @@ import logging
 
 class DocumentProcessor:
     """Orchestrates the document processing pipeline, to save raw files to postgres db ready to load into vector db."""
-    def __init__(self,db_client,llm_service):
-        self.document_manager = DocumentManager(llm_service=llm_service)
+    def __init__(self, db_client, llm_service, llm_provider="openai"):
+        self.document_manager = DocumentManager(
+            llm_service=llm_service,
+            db_client=db_client,
+            llm_provider=llm_provider
+        )
         self.logger = logging.getLogger("knowledgeAgent.document")
         self.db_client = db_client
         # Get database path from cache config

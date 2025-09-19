@@ -1,42 +1,38 @@
 from typing import Dict, Optional, Union, List, Any
 import logging
-from dataclasses import dataclass
 from pathlib import Path
-from src.knowledgeAgent.core.db.db_client import DatabaseClient
+from knowledge_graph.core.db.db_client import DatabaseClient
+from knowledge_graph.config import (
+    KnowledgeGraphConfig,
+    DatabaseConfig,
+    LLMConfig,
+    CacheConfig,
+    KGExtractionConfig,
+    # Legacy imports for backward compatibility
+    GraphDatabaseConfig,
+    AuthCredentials
+)
 
 
 
 
-@dataclass
-class GraphDatabaseConfig:
-    db_type: str
-    database: str
-    host: Optional[str] = None
-    port: Optional[int] = None
-    username: Optional[str] = None
-    password: Optional[str] = None
-    schema: Optional[str] = None
-    pool_size: int = 5
-    max_overflow: int = 10
-    ssl_mode: Optional[str] = None
-    application_name: Optional[str] = "KnowledgeAgent"
-
-@dataclass
-class AuthCredentials:
-    username: str
-    password: str
-    auth_type: str = "basic"
-    token: Optional[str] = None
+# Legacy config classes are now imported from config.py
+# This keeps backward compatibility while centralizing configuration
     
 class KnowledgeGraphClient:
     """
     Main client interface for interacting with Knowledge Graphs.
     Handles document processing, entity extraction, and graph operations.
+
+    Supports both new unified configuration and legacy configuration for backward compatibility.
+    Integrates with kggen for advanced knowledge graph extraction.
     """
     
     def __init__(
         self,
-        graph_db_config: Union[Dict, GraphDatabaseConfig],
+        config: Optional[Union[KnowledgeGraphConfig, Dict]] = None,
+        # Legacy parameters for backward compatibility
+        graph_db_config: Optional[Union[Dict, GraphDatabaseConfig]] = None,
         auth_credentials: Optional[Union[Dict, AuthCredentials]] = None,
         db_config: Optional[Union[Dict, str]] = None,
         log_level: str = "INFO",
@@ -48,35 +44,66 @@ class KnowledgeGraphClient:
     ):
         """
         Initialize the Knowledge Graph Client.
-        
-        Args:
 
+        Args:
+            config: New KnowledgeGraphConfig object or dict
+            graph_db_config: Legacy graph database config (for backward compatibility)
+            db_config: Legacy cache database config (for backward compatibility)
+            llm_config: Legacy LLM config (for backward compatibility)
+            log_level: Logging level
+            **kwargs: Additional legacy parameters
         """
 
-        self._configure_logging(log_level)
-        
-        # Initialize configuration
-        self.cache_config = db_config
-        self.db_config = db_config
-        self.llm_config = llm_config
-        self.cache_dir = self._setup_cache_directory(db_config)
+        # Handle configuration - support both new and legacy approaches
+        if config is not None:
+            # New configuration approach
+            if isinstance(config, dict):
+                self.config = KnowledgeGraphConfig.from_dict(config)
+            else:
+                self.config = config
+        else:
+            # Legacy configuration approach - build new config from old parameters
+            if not graph_db_config:
+                raise ValueError("Either 'config' or 'graph_db_config' must be provided")
 
-        self.embedding_dimension = embedding_dimension
-        self.max_connections = max_connections
-        self.timeout = timeout
-        
-        # Initialize services (these would be separate classes)
-        self.db_client = self._initialize_database_connection(db_config)
+            # Convert legacy config to new format
+            legacy_config = {
+                'graph_db': graph_db_config if isinstance(graph_db_config, dict) else graph_db_config.__dict__,
+                'log_level': log_level,
+                'max_connections': max_connections,
+                'timeout': timeout
+            }
+
+            if db_config:
+                if isinstance(db_config, str):
+                    legacy_config['cache_db'] = {'db_type': 'sqlite', 'db_location': db_config}
+                else:
+                    legacy_config['cache_db'] = db_config
+
+            if llm_config:
+                legacy_config['llm'] = llm_config
+
+            self.config = KnowledgeGraphConfig.from_dict(legacy_config)
+
+        self._configure_logging(self.config.log_level)
+
+        # Initialize services
+        self.db_client = self._initialize_database_connection()
         self._initialize_services()
-        
+
         self.logger.info("KnowledgeGraphClient initialized successfully")
     
     def _configure_logging(self, log_level: str) -> None:
         """Configure logging for the client."""
-        self.logger = logging.getLogger("knowledgeAgent")
+        self.logger = logging.getLogger("knowledge_graph")
         level = getattr(logging, log_level.upper(), logging.INFO)
         self.logger.setLevel(level)
-        # Add handlers, formatters, etc.
+        # Add console handler if not already present
+        if not self.logger.handlers:
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            handler.setFormatter(formatter)
+            self.logger.addHandler(handler)
     
     def _setup_cache_directory(self, cache_config: Optional[Union[Dict, str]]) -> str:
         """Set up and validate the cache directory."""
@@ -107,45 +134,62 @@ class KnowledgeGraphClient:
         return default_dir
     
     
-    def _initialize_database_connection(self,db_config):
-        """Establish connection to the database."""
-        if isinstance(db_config, dict) and "db_type" in db_config:
-            self.logger.debug(f"Connecting to {db_config.get('db_type', 'unknown')} database")
-            client = DatabaseClient(db_config)
-        else:
-            self.logger.error("Invalid database configuration")
-            raise ValueError("Invalid database configuration")
-        return client
+    def _initialize_database_connection(self):
+        """Establish connection to both cache and graph databases."""
+        # Prepare configurations for DatabaseClient
+        graph_db_config = self.config.graph_db.__dict__
+        cache_db_config = self.config.cache_db.__dict__ if self.config.cache_db else None
+
+        self.logger.debug(f"Initializing graph DB: {graph_db_config.get('db_type', 'unknown')}")
+        if cache_db_config:
+            self.logger.debug(f"Initializing cache DB: {cache_db_config.get('db_type', 'unknown')}")
+
+        try:
+            # Pass both configs to DatabaseClient - it will handle the separation
+            client = DatabaseClient(
+                graph_db_config=graph_db_config,
+                cache_db_config=cache_db_config
+            )
+            return client
+        except Exception as e:
+            self.logger.error(f"Failed to initialize database connection: {e}")
+            raise ValueError(f"Invalid database configuration: {e}")
     
 
     def _initialize_services(self) -> None:
         """Initialize all required services."""
-        from src.knowledgeAgent.document.service import DocumentService
-        from src.knowledgeAgent.llm.service import LLMService
-        from src.knowledgeAgent.knowledge_graph.service import KnowledgeGraphService
-        
-        # Initialize LLM service with config
-        self.llm_service = LLMService(config=self.llm_config)
+        from knowledge_graph.document.service import DocumentService
+        from knowledge_graph.llm.service import LLMService
+        from knowledge_graph.knowledge_graph.service import KnowledgeGraphService
+        from knowledge_graph.llm.kg_extractor.service import KGExtractionService
 
+        # Initialize LLM service with new config structure
+        llm_config_dict = self.config.llm.__dict__ if self.config.llm else {}
+        self.llm_service = LLMService(config=llm_config_dict)
 
-        # Convert cache_config to format expected by DocumentService
-        if isinstance(self.cache_config, str):
-            doc_cache_config = {"enabled": True, "location": self.cache_dir}
-        elif isinstance(self.cache_config, dict):
-            doc_cache_config = self.cache_config
-            if "enabled" not in doc_cache_config:
-                doc_cache_config["enabled"] = True
-            if "cache_location" in doc_cache_config:
-                doc_cache_config["location"] = doc_cache_config["cache_location"]
-        else:
-            doc_cache_config = {"enabled": True, "location": self.cache_dir}
-            
-    
-        # Initialize document service with LLM service
-        self.logger.info(f"Initializing document service with cache config: {doc_cache_config}")
-        self.document_service = DocumentService(db_client=self.db_client,llm_service=self.llm_service)
-        self.logger.info(f"Initializing knowledge graph service with db config: {self.db_config}")
-        self.knowledge_graph_service = KnowledgeGraphService(db_client=self.db_client,llm_service=self.llm_service)
+        # Initialize KG extraction service with kggen integration
+        kg_extraction_config = self.config.kg_extraction.__dict__ if self.config.kg_extraction else {}
+        llm_provider = self.config.llm.provider if self.config.llm else "openai"
+
+        self.kg_extraction_service = KGExtractionService(
+            llm_provider=llm_provider,
+            **{**llm_config_dict, **kg_extraction_config}
+        )
+
+        # Initialize document and knowledge graph services
+        self.logger.info("Initializing document service")
+        self.document_service = DocumentService(
+            db_client=self.db_client,
+            llm_service=self.llm_service,
+            llm_provider=llm_provider
+        )
+
+        self.logger.info("Initializing knowledge graph service")
+        self.knowledge_graph_service = KnowledgeGraphService(
+            db_client=self.db_client,
+            llm_service=self.llm_service,
+            llm_provider=llm_provider
+        )
 
     # Document Operations
     def add_document(self, document_path: str,document_id: str,document_type: Optional[str] = None) -> str:
@@ -237,25 +281,202 @@ class KnowledgeGraphClient:
         return f"graph_{name}"
     
     # Query Operations
-    def query(self, query_text: str, graph_id: Optional[str] = None) -> List[Dict]:
+    def query(self, query_text: str, graph_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Query the knowledge graph using natural language.
-        
+
         Args:
             query_text: Natural language query
             graph_id: Optional graph ID (if not provided, uses default)
-            
+
         Returns:
-            results: List of matching results
+            Dictionary with query results including entities and relationships
         """
-        # Implementation
-        return [{"result": "not_implemented"}]
+        return self.db_client.query_knowledge_graph(query_text)
+
+    def get_knowledge_graph_stats(self) -> Dict[str, Any]:
+        """
+        Get statistics about the knowledge graph.
+
+        Returns:
+            Dictionary with statistics about entities, relationships, etc.
+        """
+        return self.db_client.get_graph_stats()
+
+    def search_entities(self, query: str) -> List[Dict[str, Any]]:
+        """
+        Search for entities in the knowledge graph.
+
+        Args:
+            query: Search query
+
+        Returns:
+            List of matching entities
+        """
+        if self.db_client.json_kg_service:
+            return self.db_client.json_kg_service.search_entities(query)
+        else:
+            self.logger.warning("Entity search not available for current database configuration")
+            return []
+
+    def search_relationships(self, query: str) -> List[Dict[str, Any]]:
+        """
+        Search for relationships in the knowledge graph.
+
+        Args:
+            query: Search query
+
+        Returns:
+            List of matching relationships
+        """
+        if self.db_client.json_kg_service:
+            return self.db_client.json_kg_service.search_relationships(query)
+        else:
+            self.logger.warning("Relationship search not available for current database configuration")
+            return []
+
+    def get_entity_relationships(self, entity_name: str) -> List[Dict[str, Any]]:
+        """
+        Get all relationships for a specific entity.
+
+        Args:
+            entity_name: Name of the entity
+
+        Returns:
+            List of relationships involving the entity
+        """
+        if self.db_client.json_kg_service:
+            return self.db_client.json_kg_service.get_entity_relationships(entity_name)
+        else:
+            self.logger.warning("Entity relationship lookup not available for current database configuration")
+            return []
     
-    # Connection Management
+    # Advanced KG Extraction using kggen
+    def extract_knowledge_graph_advanced(
+        self,
+        text: str,
+        context: Optional[str] = None,
+        strategy: str = "detailed"
+    ) -> Dict[str, Any]:
+        """
+        Extract knowledge graph using advanced kggen integration.
+
+        Args:
+            text: Input text to extract from
+            context: Optional context for better extraction
+            strategy: Extraction strategy ("simple", "detailed")
+
+        Returns:
+            Dictionary with entities, relations, and metadata
+        """
+        return self.kg_extraction_service.extract_from_text(
+            text=text,
+            context=context,
+            strategy=strategy,
+            track_metadata=True
+        )
+
+    # Connection Management and Context Manager Support
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        self.close()
+
     def close(self) -> None:
         """Close all connections and free resources."""
-        # Implementation to clean up connections
+        if hasattr(self.db_client, 'close'):
+            self.db_client.close()
         self.logger.info("KnowledgeGraphClient closed")
+
+    # Class methods for easy client creation
+    @classmethod
+    def create_default(
+        cls,
+        graph_db_config: Dict[str, Any],
+        llm_provider: str = "openai",
+        api_key: Optional[str] = None
+    ) -> 'KnowledgeGraphClient':
+        """
+        Create a client with default configuration.
+
+        Args:
+            graph_db_config: Graph database configuration
+            llm_provider: LLM provider ("openai", "ollama")
+            api_key: API key for the LLM provider
+
+        Returns:
+            Configured KnowledgeGraphClient instance
+        """
+        config = KnowledgeGraphConfig.create_default(graph_db_config)
+        if llm_provider:
+            config.llm.provider = llm_provider
+        if api_key:
+            config.llm.api_key = api_key
+
+        return cls(config=config)
+
+    @classmethod
+    def from_config_file(cls, config_path: Union[str, Path]) -> 'KnowledgeGraphClient':
+        """
+        Create a client from a configuration file.
+
+        Args:
+            config_path: Path to YAML or JSON configuration file
+
+        Returns:
+            Configured KnowledgeGraphClient instance
+        """
+        import yaml
+        import json
+
+        config_path = Path(config_path)
+
+        with open(config_path, 'r') as f:
+            if config_path.suffix.lower() in ['.yaml', '.yml']:
+                config_dict = yaml.safe_load(f)
+            else:
+                config_dict = json.load(f)
+
+        config = KnowledgeGraphConfig.from_dict(config_dict)
+        return cls(config=config)
+
+    @classmethod
+    def create_simple(
+        cls,
+        neo4j_uri: str = "bolt://localhost:7687",
+        neo4j_user: str = "neo4j",
+        neo4j_password: str = "password",
+        openai_api_key: Optional[str] = None
+    ) -> 'KnowledgeGraphClient':
+        """
+        Create a simple client with minimal configuration.
+
+        Args:
+            neo4j_uri: Neo4j connection URI
+            neo4j_user: Neo4j username
+            neo4j_password: Neo4j password
+            openai_api_key: OpenAI API key
+
+        Returns:
+            Configured KnowledgeGraphClient instance
+        """
+        graph_db_config = {
+            "db_type": "neo4j",
+            "host": neo4j_uri.split("://")[1].split(":")[0],
+            "port": int(neo4j_uri.split(":")[-1]),
+            "username": neo4j_user,
+            "password": neo4j_password,
+            "database": "neo4j"
+        }
+
+        return cls.create_default(
+            graph_db_config=graph_db_config,
+            llm_provider="openai",
+            api_key=openai_api_key
+        )
 
 
 if __name__ == "__main__":

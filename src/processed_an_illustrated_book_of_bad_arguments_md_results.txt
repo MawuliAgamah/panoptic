@@ -1,12 +1,12 @@
-Knowledge Graph Extraction Results
-Document: An Illustrated Book of Bad Arguments
-Processed: 2025-09-19 00:39:42.235274
+Knowledge Graph Processing Results
+Document: An Illustrated Book of Bad Arguments.md
+Document ID: processed_an_illustrated_book_of_bad_arguments_md
+LLM Provider: openai
+Processing completed successfully.
 
-Entities (5):
-- Arguing from consequences
-- Logical fallacy
-- Prose
-- Straw Man
-- Terseness
-
-Relations (0):
+Knowledge Graph Statistics:
+  total_facts: 0
+  total_entities: 18
+  total_relationships: 5
+  unique_documents: 2
+  last_updated: 2025-09-19T10:27:16.065250

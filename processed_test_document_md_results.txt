@@ -1,0 +1,12 @@
+Knowledge Graph Processing Results
+Document: test_document.md
+Document ID: processed_test_document_md
+LLM Provider: openai
+Processing completed successfully.
+
+Knowledge Graph Statistics:
+  total_facts: 0
+  total_entities: 13
+  total_relationships: 5
+  unique_documents: 1
+  last_updated: 2025-09-19T10:25:06.166430

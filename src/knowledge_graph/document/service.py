@@ -9,13 +9,17 @@ import uuid
 class DocumentService:
     """Service for document operations, used by the client"""
 
-    def __init__(self, db_client, llm_service=None):
+    def __init__(self, db_client, llm_service=None, llm_provider="openai"):
         self.logger = logging.getLogger("knowledgeAgent.document")
         self.db_client = db_client
         self.llm_service = llm_service
-        
+
         # initialize document processor
-        self.processor = DocumentProcessor(db_client=self.db_client,  llm_service=self.llm_service)
+        self.processor = DocumentProcessor(
+            db_client=self.db_client,
+            llm_service=self.llm_service,
+            llm_provider=llm_provider
+        )
         
     def add_document(self, document_path, document_type=None, document_id=None, cache=True):
         """Add a document to the system"""
