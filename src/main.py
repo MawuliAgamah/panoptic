@@ -10,6 +10,7 @@ from typing import Optional
 
 from bots import get_telegram_bot
 from knowledge_graph import create_json_client, KnowledgeGraphClient
+from flashcards import create_flashcard_service
 import dotenv
 
 
@@ -238,6 +239,127 @@ async def query_knowledge_store(query: str):
         raise
 
 
+async def test_flashcards():
+    """Test the flashcard system."""
+    logger = logging.getLogger(__name__)
+
+    try:
+        logger.info("🧪 Testing Flashcard System")
+        logger.info("=" * 50)
+
+        # 1. Initialize service
+        logger.info("1. Initializing FlashcardService...")
+        service = create_flashcard_service(enable_anki=False)
+
+        # 2. Test service info
+        logger.info("2. Service Info:")
+        info = service.get_service_info()
+        logger.info(f"   Algorithms available: {info['flashcard_service']['algorithms_available']}")
+        logger.info(f"   Anki enabled: {info['flashcard_service']['anki_enabled']}")
+
+        # 3. Create a user and deck
+        user_id = "test_user_123"
+        logger.info(f"3. Creating deck for user {user_id}...")
+
+        deck = service.create_deck(
+            user_id=user_id,
+            name="Python Basics",
+            description="Learning Python fundamentals",
+            algorithm="sm2"
+        )
+
+        if deck:
+            logger.info(f"   ✅ Created deck: '{deck.name}' (ID: {deck.deck_id})")
+            logger.info(f"   Algorithm: {deck.default_algorithm}")
+        else:
+            logger.error("   ❌ Failed to create deck")
+            return
+
+        # 4. Create some flashcards
+        logger.info("4. Creating flashcards...")
+
+        cards_data = [
+            ("What is a Python list?", "An ordered, mutable collection: [1, 2, 3]"),
+            ("How do you define a function in Python?", "def function_name(parameters): return value"),
+            ("What is a dictionary in Python?", "A key-value collection: {'key': 'value'}"),
+            ("How do you create a for loop?", "for item in iterable: print(item)")
+        ]
+
+        cards = []
+        for front, back in cards_data:
+            card = service.create_card(
+                deck_id=deck.deck_id,
+                user_id=user_id,
+                front=front,
+                back=back,
+                tags=["python", "basics"]
+            )
+            if card:
+                cards.append(card)
+                logger.info(f"   ✅ Created card: {front[:30]}...")
+
+        logger.info(f"   Created {len(cards)} cards")
+
+        # 5. Check due cards
+        logger.info("5. Checking due cards...")
+        due_cards = service.get_due_cards(user_id)
+        logger.info(f"   Cards due for review: {len(due_cards)}")
+
+        # 6. Review a card
+        logger.info("6. Reviewing cards...")
+        if due_cards:
+            card_to_review = due_cards[0]
+            logger.info(f"   Reviewing: {card_to_review.front}")
+            logger.info(f"   Algorithm: {card_to_review.scheduling.algorithm_name}")
+
+            # Review with quality 4 (good recall)
+            review = service.review_card(card_to_review.card_id, quality=4)
+
+            if review:
+                logger.info(f"   ✅ Review completed!")
+                updated_card = service.get_card(card_to_review.card_id)
+                logger.info(f"   Next review: {updated_card.scheduling.next_review_date}")
+                logger.info(f"   Ease factor: {updated_card.scheduling.ease_factor:.2f}")
+                logger.info(f"   Interval: {updated_card.scheduling.interval_days} days")
+
+        # 7. Test algorithm switching
+        logger.info("7. Testing algorithm switching...")
+        if cards:
+            test_card = cards[1]
+            logger.info(f"   Current algorithm: {test_card.scheduling.algorithm_name}")
+
+            success = service.switch_card_algorithm(test_card.card_id, "sm15")
+            if success:
+                updated_card = service.get_card(test_card.card_id)
+                logger.info(f"   ✅ Switched to: {updated_card.scheduling.algorithm_name}")
+            else:
+                logger.error("   ❌ Failed to switch algorithm")
+
+        # 8. Get statistics
+        logger.info("8. User Statistics:")
+        stats = service.get_user_stats(user_id)
+        logger.info(f"   Total cards: {stats['total_cards']}")
+        logger.info(f"   Cards due: {stats['cards_due']}")
+        logger.info(f"   Total reviews: {stats['total_reviews']}")
+        logger.info(f"   Algorithm breakdown: {stats['algorithm_breakdown']}")
+
+        # 9. Test different algorithms
+        logger.info("9. Available algorithms:")
+        algorithms = service.get_available_algorithms()
+        for algo_name, algo_info in algorithms.items():
+            logger.info(f"   {algo_name}: {algo_info['description']}")
+
+        logger.info("=" * 50)
+        logger.info("🎉 Flashcard system test completed!")
+        logger.info("Check the database/ folder for created JSON files")
+
+        service.close()
+
+    except Exception as e:
+        logger.error(f"Flashcard test error: {e}")
+        raise
+
+
 async def main():
     """Main application entry point."""
     logging.basicConfig(
@@ -264,6 +386,8 @@ async def main():
             print("Usage: python src/main.py query <search_terms>")
         elif command == "clear_kg_store":
             await clear_knowledge_store()
+        elif command == "test_flashcards":
+            await test_flashcards()
         else:
             logging.error(f"Unknown command: {command}")
             print_usage()
@@ -278,6 +402,7 @@ def print_usage():
     print("  python src/main.py process <document_path>     # Process document through KG pipeline")
     print("  python src/main.py query <search_terms>       # Query the JSON knowledge store")
     print("  python src/main.py clear_kg_store              # Clear all data from knowledge store")
+    print("  python src/main.py test_flashcards             # Test the flashcard system")
     print("")
     print("Examples:")
     print('  python src/main.py process "/path/to/document.md"')

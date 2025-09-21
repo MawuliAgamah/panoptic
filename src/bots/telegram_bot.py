@@ -46,6 +46,9 @@ class TelegramBot(BaseBot):
         self.is_running = True
         logger.info("Telegram bot started successfully")
 
+        # Send startup message with due flashcards
+        await self._send_startup_message()
+
     async def stop(self) -> None:
         if self.application:
             await self.application.updater.stop()
@@ -80,6 +83,67 @@ class TelegramBot(BaseBot):
 
         await update.message.reply_text(response)
         logger.info(f"Responded to user {user_id} with: {response}")
+
+    async def _send_startup_message(self) -> None:
+        """Send startup message with due flashcards"""
+        try:
+            # Use the chat_id as the user_id for flashcard service
+            user_id = self.chat_id
+
+            # Get flashcard service from message handler
+            flashcard_service = self.message_handler.flashcard_service
+
+            # Check for due cards
+            due_cards = flashcard_service.get_due_cards(user_id, limit=1)
+            stats = flashcard_service.get_user_stats(user_id)
+
+            if due_cards:
+                # Start review session automatically
+                card = due_cards[0]
+
+                startup_message = (
+                    f"🤖 **Bot Started!**\n\n"
+                    f"📚 **Time to study!** You have {len(flashcard_service.get_due_cards(user_id))} cards due for review.\n\n"
+                    f"**Here's your first card:**\n\n"
+                    f"**Question:**\n{card.front}\n\n"
+                    f"Think about the answer, then reply with any message to see the answer.\n\n"
+                    f"Algorithm: {card.scheduling.algorithm_name}"
+                )
+
+                # Set up review context for this user
+                self.message_handler.user_contexts[user_id] = {
+                    'state': 'reviewing',
+                    'card_id': card.card_id,
+                    'step': 'show_question'
+                }
+
+            elif stats['total_cards'] > 0:
+                # User has cards but none due
+                startup_message = (
+                    f"🤖 **Bot Started!**\n\n"
+                    f"🎉 **All caught up!** You have {stats['total_cards']} flashcards but none are due for review right now.\n"
+                    f"Great job staying on top of your studies! 🌟\n\n"
+                    f"💡 Type 'new card' to create more flashcards or 'review' to study."
+                )
+            else:
+                # No cards at all
+                startup_message = (
+                    f"🤖 **Bot Started!**\n\n"
+                    f"📚 **Welcome to your Flashcard Learning Bot!**\n\n"
+                    f"You don't have any flashcards yet. Let's get started!\n\n"
+                    f"💡 Type 'new card' to create your first flashcard, or '/help' to see all commands."
+                )
+
+            await self.send_message(startup_message)
+
+        except Exception as e:
+            logger.error(f"Failed to send startup message: {e}")
+            # Send basic startup message as fallback
+            fallback_message = (
+                f"🤖 **Bot Started!**\n\n"
+                f"Ready for flashcard learning! Type '/help' to see available commands."
+            )
+            await self.send_message(fallback_message)
 
     async def run_forever(self) -> None:
         await self.start()
