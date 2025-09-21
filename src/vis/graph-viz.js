@@ -45,6 +45,285 @@ class KnowledgeGraphViz {
 
         this.data = null;
         this.filteredData = null;
+
+        // Initialize upload functionality
+        this.initializeUpload();
+    }
+
+    initializeUpload() {
+        // Set up file input handler
+        const fileInput = document.getElementById('file-input');
+        const titleInput = document.getElementById('document-title');
+
+        if (fileInput) {
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    const filename = e.target.files[0].name;
+                    const titleFromFile = filename.split('.').slice(0, -1).join('.')
+                        .replace(/[-_]/g, ' ')
+                        .replace(/\b\w/g, l => l.toUpperCase());
+                    titleInput.value = titleFromFile;
+                }
+            });
+        }
+
+        // Set up tag input handler
+        this.setupTagInput();
+
+        // Set up form submission
+        this.setupFormSubmission();
+
+        // Set up custom domain visibility
+        this.setupCustomDomainToggle();
+    }
+
+    setupTagInput() {
+        const tagInput = document.getElementById('tag-input');
+        const tagDisplay = document.getElementById('tag-display');
+        this.userTags = [];
+
+        if (!tagInput) return;
+
+        tagInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const tag = e.target.value.trim().toLowerCase();
+
+                if (tag && !this.userTags.includes(tag)) {
+                    this.userTags.push(tag);
+                    this.updateTagDisplay();
+                    e.target.value = '';
+                }
+            }
+        });
+    }
+
+    updateTagDisplay() {
+        const tagDisplay = document.getElementById('tag-display');
+        if (!tagDisplay) return;
+
+        tagDisplay.innerHTML = '';
+
+        this.userTags.forEach((tag, index) => {
+            const tagElement = document.createElement('div');
+            tagElement.className = 'tag';
+            tagElement.innerHTML = `
+                ${tag}
+                <span class="remove-tag" onclick="viz.removeTag(${index})">&times;</span>
+            `;
+            tagDisplay.appendChild(tagElement);
+        });
+    }
+
+    removeTag(index) {
+        this.userTags.splice(index, 1);
+        this.updateTagDisplay();
+    }
+
+    setupCustomDomainToggle() {
+        const domainSelect = document.getElementById('document-domain');
+        const customDomainGroup = document.getElementById('custom-domain').parentElement;
+
+        if (!domainSelect || !customDomainGroup) return;
+
+        domainSelect.addEventListener('change', (e) => {
+            if (e.target.value === 'other') {
+                customDomainGroup.style.display = 'block';
+            } else {
+                customDomainGroup.style.display = 'none';
+                document.getElementById('custom-domain').value = '';
+            }
+        });
+
+        // Initially hide custom domain
+        customDomainGroup.style.display = 'none';
+    }
+
+    setupFormSubmission() {
+        const form = document.getElementById('uploadForm');
+        if (!form) return;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await this.handleFileUpload();
+        });
+    }
+
+    async handleFileUpload() {
+        const formData = new FormData();
+        const fileInput = document.getElementById('file-input');
+
+        if (!fileInput.files.length) {
+            this.showMessage('Please select a file to upload.', 'error');
+            return;
+        }
+
+        // Collect form data
+        const uploadData = {
+            file: fileInput.files[0],
+            title: document.getElementById('document-title').value.trim(),
+            type: document.getElementById('document-type').value,
+            domain: document.getElementById('document-domain').value,
+            customDomain: document.getElementById('custom-domain').value.trim(),
+            description: document.getElementById('document-description').value.trim(),
+            tags: [...this.userTags],
+            autoExtract: document.getElementById('auto-extract').checked,
+            generateFlashcards: document.getElementById('generate-flashcards').checked
+        };
+
+        // Validate required fields
+        if (!uploadData.title || !uploadData.type || !uploadData.domain) {
+            this.showMessage('Please fill in all required fields.', 'error');
+            return;
+        }
+
+        if (uploadData.domain === 'other' && !uploadData.customDomain) {
+            this.showMessage('Please specify a custom domain.', 'error');
+            return;
+        }
+
+        // Prepare form data for submission
+        formData.append('file', uploadData.file);
+        formData.append('title', uploadData.title);
+        formData.append('type', uploadData.type);
+        formData.append('domain', uploadData.domain === 'other' ? uploadData.customDomain : uploadData.domain);
+        formData.append('description', uploadData.description);
+        formData.append('tags', JSON.stringify(uploadData.tags));
+        formData.append('auto_extract', uploadData.autoExtract);
+        formData.append('generate_flashcards', uploadData.generateFlashcards);
+
+        // Show progress
+        this.showUploadProgress();
+
+        try {
+            // Upload to backend (adjust URL as needed)
+            const response = await fetch('/api/upload-document', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error(`Upload failed: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+
+            this.hideUploadProgress();
+            this.showMessage(`✅ Document "${uploadData.title}" uploaded successfully! ${result.entities_extracted || 0} entities and ${result.relationships_created || 0} relationships found.`, 'success');
+
+            // Reset form and close modal
+            this.resetUploadForm();
+            setTimeout(() => {
+                this.hideUploadModal();
+                // Reload the graph to show new data
+                this.loadData();
+            }, 2000);
+
+        } catch (error) {
+            console.error('Upload error:', error);
+            this.hideUploadProgress();
+            this.showMessage(`❌ Upload failed: ${error.message}`, 'error');
+        }
+    }
+
+    showUploadProgress() {
+        const modalBody = document.querySelector('.modal-body');
+        const progressDiv = document.getElementById('upload-progress');
+        const progressFill = document.getElementById('progress-fill');
+        const progressText = document.getElementById('progress-text');
+
+        if (modalBody && progressDiv) {
+            modalBody.style.display = 'none';
+            progressDiv.style.display = 'block';
+
+            // Simulate progress (you can make this real with upload progress events)
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 90) progress = 90; // Don't complete until actual response
+
+                progressFill.style.width = progress + '%';
+                progressText.textContent = `Processing... ${Math.round(progress)}%`;
+            }, 200);
+
+            // Store interval for cleanup
+            this.progressInterval = interval;
+        }
+    }
+
+    hideUploadProgress() {
+        const modalBody = document.querySelector('.modal-body');
+        const progressDiv = document.getElementById('upload-progress');
+        const progressFill = document.getElementById('progress-fill');
+        const progressText = document.getElementById('progress-text');
+
+        if (this.progressInterval) {
+            clearInterval(this.progressInterval);
+            this.progressInterval = null;
+        }
+
+        if (modalBody && progressDiv) {
+            progressFill.style.width = '100%';
+            progressText.textContent = 'Complete!';
+
+            setTimeout(() => {
+                modalBody.style.display = 'block';
+                progressDiv.style.display = 'none';
+                progressFill.style.width = '0%';
+                progressText.textContent = 'Uploading...';
+            }, 1000);
+        }
+    }
+
+    showMessage(text, type) {
+        const modalBody = document.querySelector('.modal-body');
+        if (!modalBody) return;
+
+        // Remove existing messages
+        const existingMessages = modalBody.querySelectorAll('.message');
+        existingMessages.forEach(msg => msg.remove());
+
+        // Create new message
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${type}`;
+        messageDiv.textContent = text;
+
+        // Insert at top of modal body
+        modalBody.insertBefore(messageDiv, modalBody.firstChild);
+
+        // Auto-remove success messages
+        if (type === 'success') {
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 5000);
+        }
+    }
+
+    resetUploadForm() {
+        const form = document.getElementById('uploadForm');
+        if (form) {
+            form.reset();
+            this.userTags = [];
+            this.updateTagDisplay();
+            document.getElementById('custom-domain').parentElement.style.display = 'none';
+        }
+    }
+
+    showUploadModal() {
+        const modal = document.getElementById('uploadModal');
+        if (modal) {
+            modal.style.display = 'block';
+        }
+    }
+
+    hideUploadModal() {
+        const modal = document.getElementById('uploadModal');
+        if (modal) {
+            modal.style.display = 'none';
+            // Clear any messages
+            const messages = modal.querySelectorAll('.message');
+            messages.forEach(msg => msg.remove());
+        }
     }
 
     async loadData() {
@@ -392,7 +671,23 @@ function filterByDocument() {
     viz.filterByDocument();
 }
 
+function showUploadModal() {
+    viz.showUploadModal();
+}
+
+function hideUploadModal() {
+    viz.hideUploadModal();
+}
+
 // Auto-load data when page loads
 document.addEventListener('DOMContentLoaded', function() {
     viz.loadData();
+
+    // Close modal when clicking outside of it
+    window.addEventListener('click', function(event) {
+        const modal = document.getElementById('uploadModal');
+        if (event.target === modal) {
+            viz.hideUploadModal();
+        }
+    });
 });

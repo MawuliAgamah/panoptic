@@ -28,6 +28,9 @@ dependencies = [
     "pytest",
     "neo4j",
     "kg-gen>=0.1.6",
+    "fastapi",
+    "uvicorn",
+    "python-multipart",
 ]
 
 [project.urls]

@@ -7,10 +7,14 @@ import logging
 import sys
 import os
 from typing import Optional
+import signal
+import threading
+import time
 
 from bots import get_telegram_bot
 from knowledge_graph import create_json_client, KnowledgeGraphClient
 from flashcards import create_flashcard_service
+from web import run_web_server
 import dotenv
 
 
@@ -360,6 +364,107 @@ async def test_flashcards():
         raise
 
 
+class UnifiedApplication:
+    """Unified application that runs web server, telegram bot, and backend services"""
+
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        self.running = False
+        self.tasks = []
+
+    async def run_all_services(self, host: str = "127.0.0.1", port: int = 8001):
+        """Run web server, telegram bot, and all backend services"""
+        self.logger.info("🚀 Starting Unified AI Module Application")
+        self.logger.info("=" * 60)
+
+        # Load environment variables
+        dotenv.load_dotenv()
+
+        self.running = True
+
+        try:
+            # Create tasks for all services
+            tasks = []
+
+            # 1. Web server task
+            self.logger.info(f"📱 Starting Web Server at http://{host}:{port}")
+            web_task = asyncio.create_task(run_web_server(host, port))
+            tasks.append(("web_server", web_task))
+
+            # 2. Telegram bot task (if configured)
+            if os.getenv("TELEGRAM_BOT_TOKEN"):
+                self.logger.info("🤖 Starting Telegram Bot")
+                telegram_task = asyncio.create_task(self.run_telegram_bot_service())
+                tasks.append(("telegram_bot", telegram_task))
+            else:
+                self.logger.warning("🤖 Telegram bot not configured (missing TELEGRAM_BOT_TOKEN)")
+
+            self.tasks = tasks
+
+            # Print startup info
+            self.logger.info("✅ All services starting...")
+            self.logger.info("=" * 60)
+            self.logger.info("🌐 ACCESS POINTS:")
+            self.logger.info(f"   • Web Interface: http://{host}:{port}")
+            self.logger.info(f"   • API Documentation: http://{host}:{port}/docs")
+            self.logger.info(f"   • Knowledge Graph Data: http://{host}:{port}/database/knowledge_store.json")
+            if os.getenv("TELEGRAM_BOT_TOKEN"):
+                self.logger.info(f"   • Telegram Bot: Active (check your Telegram app)")
+            self.logger.info("=" * 60)
+            self.logger.info("📤 UPLOAD DOCUMENTS:")
+            self.logger.info("   • Visit the web interface and click 'Upload Document'")
+            self.logger.info("   • Add tags, select domain, and enable flashcard generation")
+            self.logger.info("   • Documents will be processed and added to the knowledge graph")
+            self.logger.info("=" * 60)
+            self.logger.info("⚡ READY FOR USE!")
+            self.logger.info("Press Ctrl+C to stop all services")
+
+            # Wait for all tasks to complete (or until interrupted)
+            await asyncio.gather(*[task for _, task in tasks], return_exceptions=True)
+
+        except KeyboardInterrupt:
+            self.logger.info("🛑 Received interrupt signal, stopping services...")
+            await self.shutdown()
+        except Exception as e:
+            self.logger.error(f"❌ Application error: {e}")
+            await self.shutdown()
+            raise
+
+    async def run_telegram_bot_service(self):
+        """Run the telegram bot as a service"""
+        try:
+            TelegramBot = get_telegram_bot()
+            bot = TelegramBot()
+            await bot.run_forever()
+        except Exception as e:
+            self.logger.error(f"Telegram bot service error: {e}")
+            raise
+
+    async def shutdown(self):
+        """Gracefully shutdown all services"""
+        self.running = False
+
+        self.logger.info("🔄 Shutting down services...")
+
+        # Cancel all running tasks
+        for service_name, task in self.tasks:
+            if not task.done():
+                self.logger.info(f"   Stopping {service_name}...")
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+        self.logger.info("✅ All services stopped successfully")
+
+
+async def run_unified_application(host: str = "127.0.0.1", port: int = 8001):
+    """Run the unified application with all services"""
+    app = UnifiedApplication()
+    await app.run_all_services(host, port)
+
+
 async def main():
     """Main application entry point."""
     logging.basicConfig(
@@ -370,7 +475,23 @@ async def main():
     if len(sys.argv) > 1:
         command = sys.argv[1]
 
-        if command == "telegram":
+        if command == "application" or command == "app":
+            # Run unified application (default mode)
+            host = "127.0.0.1"
+            port = 8001
+
+            # Check for custom host/port
+            if len(sys.argv) > 2:
+                try:
+                    port = int(sys.argv[2])
+                except ValueError:
+                    logging.error(f"Invalid port: {sys.argv[2]}")
+                    return
+            if len(sys.argv) > 3:
+                host = sys.argv[3]
+
+            await run_unified_application(host, port)
+        elif command == "telegram":
             await run_telegram_bot()
         elif command == "process" and len(sys.argv) > 2:
             document_path = sys.argv[2]
@@ -392,46 +513,73 @@ async def main():
             logging.error(f"Unknown command: {command}")
             print_usage()
     else:
-        print_usage()
+        # Default to unified application if no command provided
+        await run_unified_application()
 
 
 def print_usage():
     """Print usage information."""
-    print("AI Module - Usage:")
-    print("  python src/main.py telegram                    # Run Telegram bot")
-    print("  python src/main.py process <document_path>     # Process document through KG pipeline")
-    print("  python src/main.py query <search_terms>       # Query the JSON knowledge store")
-    print("  python src/main.py clear_kg_store              # Clear all data from knowledge store")
-    print("  python src/main.py test_flashcards             # Test the flashcard system")
+    print("🚀 AI Module - Knowledge Graph & Flashcard System")
+    print("=" * 60)
+    print("MAIN COMMANDS:")
+    print("  python src/main.py                             # Run full application (default)")
+    print("  python src/main.py application [port] [host]   # Run full application with custom settings")
+    print("  uv run src/main.py                             # Run full application with uv")
+    print("")
+    print("INDIVIDUAL SERVICES:")
+    print("  python src/main.py telegram                    # Run Telegram bot only")
+    print("  python src/main.py process <document_path>     # Process single document")
+    print("  python src/main.py query <search_terms>       # Query knowledge store")
+    print("  python src/main.py test_flashcards             # Test flashcard system")
+    print("  python src/main.py clear_kg_store              # Clear all data")
+    print("")
+    print("🌟 RECOMMENDED USAGE:")
+    print("  uv run main.py                                 # Starts everything you need!")
+    print("")
+    print("This will start:")
+    print("  📱 Web Interface (http://127.0.0.1:8001)")
+    print("  🤖 Telegram Bot (if TELEGRAM_BOT_TOKEN set)")
+    print("  📊 Knowledge Graph Backend")
+    print("  🗃️  Flashcard System")
+    print("  📤 Document Upload & Processing")
     print("")
     print("Examples:")
-    print('  python src/main.py process "/path/to/document.md"')
-    print('  python src/main.py process "~/Documents/notes.txt"')
-    print('  python src/main.py query "machine learning"')
-    print('  python src/main.py query "Python programming"')
+    print('  uv run main.py                                 # Full app on default port 8001')
+    print('  python src/main.py application 8080            # Full app on port 8080')
+    print('  python src/main.py process "/path/to/doc.md"   # Process single document')
+    print('  python src/main.py query "machine learning"    # Search knowledge graph')
     print("")
-    print("LLM Provider Configuration:")
+    print("🔧 ENVIRONMENT SETUP:")
     print("  export OPENAI_API_KEY=your-api-key    # Use OpenAI GPT models")
     print("  export KG_LLM_PROVIDER=ollama         # Use local Ollama")
+    print("  export TELEGRAM_BOT_TOKEN=your-token  # Enable Telegram bot")
     print("")
-    print("Full Example with OpenAI:")
-    print('  export OPENAI_API_KEY="your-api-key"')
-    print('  python src/main.py process "/path/to/document.md"')
+    print("📤 WEB INTERFACE FEATURES:")
+    print("  • Upload documents (PDF, TXT, MD, DOCX)")
+    print("  • Add custom tags and domains")
+    print("  • Auto-extract entities with LLM")
+    print("  • Generate flashcards automatically")
+    print("  • Visualize knowledge graph")
+    print("  • Interactive D3.js visualization")
     print("")
-    print("Knowledge Store Features:")
-    print("  - JSON-based storage (no database server required)")
-    print("  - Advanced kggen integration for entity extraction")
-    print("  - Automatic deduplication across documents")
-    print("  - Natural language querying capabilities")
-    print("  - Comprehensive logging for debugging")
+    print("🤖 TELEGRAM BOT FEATURES:")
+    print("  • Create flashcards on-the-go")
+    print("  • Review due cards with spaced repetition")
+    print("  • Get learning statistics")
+    print("  • Natural conversation interface")
     print("")
-    print("Supported formats: .md, .txt, .pdf, .docx")
-    print("The system will automatically:")
-    print("  - Clean and parse the document")
-    print("  - Extract entities and relationships using kggen")
-    print("  - Generate metadata and topics")
-    print("  - Save to JSON knowledge store")
-    print("  - Create detailed result files")
+    print("🎯 GETTING STARTED:")
+    print("  1. Run: uv run main.py")
+    print("  2. Open: http://127.0.0.1:8001")
+    print("  3. Click 'Upload Document' to add your first document")
+    print("  4. Watch the knowledge graph grow!")
+    print("  5. Generate flashcards and start learning")
+    print("")
+    print("💾 STORAGE:")
+    print("  • JSON-based (no database setup required)")
+    print("  • Files stored in database/ folder")
+    print("  • Automatic backup and versioning")
+    print("  • Export/import capabilities")
 
 
 if __name__ == "__main__":

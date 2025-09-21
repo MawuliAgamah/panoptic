@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any, Union
 import uuid
 import json
 from ..algorithms import get_algorithm, SpacedRepetitionAlgorithm
+from .knowledge_graph import KGMapping
 
 
 @dataclass
@@ -174,16 +175,20 @@ class Flashcard:
     created_at: datetime
     updated_at: datetime
     scheduling: SpacedRepetitionData
+    kg_mapping: Optional[KGMapping] = None  # Knowledge graph mapping
     anki_note_id: Optional[int] = None  # For Anki sync
 
     def __post_init__(self):
-        """Initialize scheduling if not provided"""
+        """Initialize scheduling and KG mapping if not provided"""
         if isinstance(self.scheduling, dict):
             self.scheduling = SpacedRepetitionData.from_dict(self.scheduling)
+        if isinstance(self.kg_mapping, dict):
+            self.kg_mapping = KGMapping.from_dict(self.kg_mapping)
 
     @classmethod
     def create_new(cls, deck_id: str, user_id: str, front: str, back: str,
-                   tags: list[str] = None, algorithm: str = "sm2") -> 'Flashcard':
+                   tags: list[str] = None, algorithm: str = "sm2",
+                   kg_mapping: Optional[KGMapping] = None) -> 'Flashcard':
         """Create a new flashcard with specified algorithm"""
         now = datetime.now()
 
@@ -202,7 +207,8 @@ class Flashcard:
             scheduling=SpacedRepetitionData(
                 algorithm_name=algorithm,
                 ease_factor=algo.get_default_ease_factor()
-            )
+            ),
+            kg_mapping=kg_mapping
         )
 
     def review(self, quality: int, response_time: Optional[float] = None, **kwargs) -> FlashcardReview:
@@ -273,6 +279,57 @@ class Flashcard:
         else:
             return "Hard"
 
+    def set_kg_mapping(self, kg_mapping: KGMapping) -> None:
+        """Set or update the knowledge graph mapping for this card"""
+        self.kg_mapping = kg_mapping
+        self.updated_at = datetime.now()
+
+    def add_kg_entity(self, entity, is_primary: bool = True) -> None:
+        """Add an entity to this card's KG mapping"""
+        if not self.kg_mapping:
+            self.kg_mapping = KGMapping.create_new()
+
+        self.kg_mapping.add_entity(entity, is_primary)
+        self.updated_at = datetime.now()
+
+    def add_kg_topic(self, topic, is_primary: bool = True) -> None:
+        """Add a topic to this card's KG mapping"""
+        if not self.kg_mapping:
+            self.kg_mapping = KGMapping.create_new()
+
+        self.kg_mapping.add_topic(topic, is_primary)
+        self.updated_at = datetime.now()
+
+    def get_kg_complexity_score(self) -> float:
+        """Get the knowledge graph complexity score for this card"""
+        if self.kg_mapping:
+            return self.kg_mapping.calculate_complexity_score()
+        return 0.0
+
+    def get_kg_entities(self) -> list:
+        """Get all entities from the KG mapping"""
+        if self.kg_mapping:
+            return self.kg_mapping.get_all_entities()
+        return []
+
+    def get_kg_topics(self) -> list:
+        """Get all topics from the KG mapping"""
+        if self.kg_mapping:
+            return self.kg_mapping.get_all_topics()
+        return []
+
+    def has_kg_entity(self, entity_name: str) -> bool:
+        """Check if card is mapped to a specific entity"""
+        if not self.kg_mapping:
+            return False
+        return entity_name.lower() in self.kg_mapping.get_entity_names()
+
+    def has_kg_topic(self, topic_name: str) -> bool:
+        """Check if card is mapped to a specific topic"""
+        if not self.kg_mapping:
+            return False
+        return topic_name.lower() in self.kg_mapping.get_topic_names()
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON storage"""
         return {
@@ -285,6 +342,7 @@ class Flashcard:
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat(),
             'scheduling': self.scheduling.to_dict(),
+            'kg_mapping': self.kg_mapping.to_dict() if self.kg_mapping else None,
             'anki_note_id': self.anki_note_id
         }
 
@@ -295,6 +353,8 @@ class Flashcard:
         data['created_at'] = datetime.fromisoformat(data['created_at'])
         data['updated_at'] = datetime.fromisoformat(data['updated_at'])
         data['scheduling'] = SpacedRepetitionData.from_dict(data['scheduling'])
+        if data.get('kg_mapping'):
+            data['kg_mapping'] = KGMapping.from_dict(data['kg_mapping'])
         return cls(**data)
 
 
