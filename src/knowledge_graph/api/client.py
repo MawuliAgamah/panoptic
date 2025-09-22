@@ -192,13 +192,17 @@ class KnowledgeGraphClient:
         )
 
     # Document Operations
-    def add_document(self, document_path: str,document_id: str,document_type: Optional[str] = None) -> str:
+    def add_document(self, document_path: str, document_id: str, document_type: Optional[str] = None, 
+                    domain: Optional[str] = None, tags: Optional[List[str]] = None) -> str:
         """
         Add a document to the knowledge graph.
         
         Args:
             document_path: Path to the document file
+            document_id: Unique identifier for the document
             document_type: Type of document (optional, will be inferred if not provided)
+            domain: Domain/category for the document
+            tags: List of tags for the document
             
         Returns:
             document_id: Unique ID for the added document
@@ -236,6 +240,8 @@ class KnowledgeGraphClient:
             document_path=document_path, 
             document_type=document_type,
             document_id=document_id,
+            domain=domain,
+            tags=tags,
             cache=True
             )
         document_id = result_id if result_id is not None else document_id
@@ -251,6 +257,133 @@ class KnowledgeGraphClient:
         document_object = self.db_client.get_document(document_id=document_id)
         return document_object
     
+    def extract_knowledge_graph_json(self, document_path: str, document_id: str, document_type: Optional[str] = None, 
+                                     domain: Optional[str] = None, tags: Optional[List[str]] = None) -> Dict[str, Any]:
+        """
+        Extract knowledge graph from a document and return as JSON data instead of saving to database.
+        
+        Args:
+            document_path: Path to the document file
+            document_id: Unique identifier for the document
+            document_type: Type of document (optional)
+            domain: Domain/category for the document
+            tags: List of tags for the document
+            
+        Returns:
+            Dictionary containing extracted entities, relationships, and metadata
+        """
+        from knowledge_graph.document.manager.document_manager import DocumentManager
+        
+        self.logger.info(f"Extracting knowledge graph JSON from: {document_path}")
+        
+        # Create document manager for processing
+        doc_manager = DocumentManager(
+            llm_service=self.llm_service,
+            db_client=None,  # Don't pass db_client to prevent automatic saving
+            kg_service=self.knowledge_graph_service
+        )
+        
+        try:
+            # Process document but don't save to database
+            document = doc_manager.make_new_document(document_path, document_id)
+            if not document:
+                raise Exception(f"Failed to create document from {document_path}")
+            
+            # Set document metadata
+            if hasattr(document, 'metadata'):
+                if domain:
+                    document.metadata.categories = [domain]
+                if tags:
+                    document.metadata.tags = tags
+            
+            # Clean and process document
+            document = doc_manager.clean_document(document)
+            document = doc_manager.generate_document_level_metadata(document)
+            
+            # Extract knowledge graph without saving
+            document = doc_manager.extract_knowledge_graph(document)
+            
+            # Convert to JSON format
+            kg_json = {
+                'entities': [],
+                'relationships': [],
+                'metadata': {
+                    'document_id': document_id,
+                    'title': document.title,
+                    'file_path': document_path,
+                    'file_type': getattr(document, 'file_type', ''),
+                    'domain': domain,
+                    'tags': tags or [],
+                    'word_count': len(document.clean_content.split()) if document.clean_content else 0,
+                    'processing_strategy': 'Document-level' if document.should_use_document_level_kg() else 'Chunk-level'
+                }
+            }
+            
+            # Extract entities
+            if hasattr(document, 'knowledge_graph') and document.knowledge_graph:
+                entities = document.knowledge_graph.get('entities', set())
+                if isinstance(entities, set):
+                    entities = list(entities)
+                
+                for entity in entities:
+                    if isinstance(entity, str):
+                        kg_json['entities'].append({
+                            'name': entity,
+                            'type': 'extracted',
+                            'document_id': document_id,
+                            'metadata': {
+                                'domain': domain,
+                                'tags': tags or []
+                            }
+                        })
+                    elif isinstance(entity, dict):
+                        entity_data = {
+                            'name': entity.get('name', str(entity)),
+                            'type': entity.get('type', 'extracted'),
+                            'document_id': document_id,
+                            'metadata': entity.get('metadata', {})
+                        }
+                        if domain:
+                            entity_data['metadata']['domain'] = domain
+                        if tags:
+                            entity_data['metadata']['tags'] = tags
+                        kg_json['entities'].append(entity_data)
+                
+                # Extract relationships
+                relations = document.knowledge_graph.get('relations', [])
+                for relation in relations:
+                    if isinstance(relation, dict):
+                        kg_json['relationships'].append({
+                            'source_entity': relation.get('source', ''),
+                            'target_entity': relation.get('target', ''),
+                            'relation_type': relation.get('relation', relation.get('type', 'related_to')),
+                            'document_id': document_id,
+                            'metadata': relation.get('metadata', {})
+                        })
+                    elif isinstance(relation, (list, tuple)) and len(relation) >= 3:
+                        kg_json['relationships'].append({
+                            'source_entity': str(relation[0]),
+                            'target_entity': str(relation[2]),
+                            'relation_type': str(relation[1]),
+                            'document_id': document_id,
+                            'metadata': {}
+                        })
+            
+            self.logger.info(f"Extracted KG JSON: {len(kg_json['entities'])} entities, {len(kg_json['relationships'])} relationships")
+            return kg_json
+            
+        except Exception as e:
+            self.logger.error(f"Error extracting knowledge graph JSON: {e}")
+            # Return empty structure on error
+            return {
+                'entities': [],
+                'relationships': [],
+                'metadata': {
+                    'document_id': document_id,
+                    'error': str(e)
+                }
+            }
+
     def extract_document_ontology(self, document_id: str):
         """
         Process a document to extract entities and relationships.
@@ -350,6 +483,91 @@ class KnowledgeGraphClient:
         else:
             self.logger.warning("Entity relationship lookup not available for current database configuration")
             return []
+    
+    def get_all_domains(self) -> List[str]:
+        """
+        Get all unique domains from entity metadata.
+        
+        Returns:
+            List of unique domain names
+        """
+        if self.db_client.json_kg_service:
+            return self.db_client.json_kg_service.get_all_domains()
+        else:
+            self.logger.warning("Domain lookup not available for current database configuration")
+            return []
+    
+    def get_all_document_ids(self) -> List[str]:
+        """
+        Get all unique document IDs from entities.
+        
+        Returns:
+            List of unique document IDs
+        """
+        if self.db_client.json_kg_service:
+            return self.db_client.json_kg_service.get_all_document_ids()
+        else:
+            self.logger.warning("Document ID lookup not available for current database configuration")
+            return []
+    
+    def get_domains_by_document(self) -> Dict[str, List[str]]:
+        """
+        Get domains organized by document ID.
+        
+        Returns:
+            Dictionary mapping document IDs to lists of domains
+        """
+        if self.db_client.json_kg_service:
+            return self.db_client.json_kg_service.get_domains_by_document()
+        else:
+            self.logger.warning("Document domain lookup not available for current database configuration")
+            return {}
+    
+    def get_knowledge_graph_summary(self) -> Dict[str, Any]:
+        """
+        Get a comprehensive summary of the knowledge graph including domains and documents.
+        
+        Returns:
+            Dictionary with knowledge graph summary information
+        """
+        if not self.db_client.json_kg_service:
+            return {"error": "Knowledge graph service not available"}
+        
+        try:
+            # Get basic stats
+            stats = self.db_client.json_kg_service.get_stats()
+            
+            # Get domains and documents
+            domains = self.get_all_domains()
+            document_ids = self.get_all_document_ids()
+            doc_domains = self.get_domains_by_document()
+            
+            # Get document details
+            documents = []
+            for doc_id in document_ids:
+                entities = self.db_client.json_kg_service.get_entities(doc_id)
+                doc_title = "Unknown Document"
+                if entities:
+                    doc_title = entities[0].get('metadata', {}).get('title', 'Unknown Document')
+                
+                documents.append({
+                    'id': doc_id,
+                    'title': doc_title,
+                    'domains': doc_domains.get(doc_id, []),
+                    'entity_count': len(entities)
+                })
+            
+            return {
+                'stats': stats,
+                'domains': domains,
+                'documents': documents,
+                'total_domains': len(domains),
+                'total_documents': len(document_ids)
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Failed to get knowledge graph summary: {e}")
+            return {"error": str(e)}
     
     # Advanced KG Extraction using kggen
     def extract_knowledge_graph_advanced(

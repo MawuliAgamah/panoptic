@@ -1,0 +1,482 @@
+{
+  "11ca7f6b-9f09-4f1a-9503-d3542db33487": {
+    "id": "11ca7f6b-9f09-4f1a-9503-d3542db33487",
+    "user_id": "test_user_123",
+    "front": "What is the capital of France?",
+    "back": "Paris",
+    "Domains": [
+      "geography",
+      "europe"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:23:31.132788",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:23:31.132788",
+    "updated_at": "2025-09-21T20:23:31.132788",
+    "reviewed_at": "2025-09-21T20:23:31.132788",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "e0c9fb3b-c97a-455c-9b36-25ef6f0aca6f": {
+    "id": "e0c9fb3b-c97a-455c-9b36-25ef6f0aca6f",
+    "user_id": "test_user_123",
+    "front": "What is the largest ocean?",
+    "back": "Pacific Ocean",
+    "Domains": [
+      "geography",
+      "oceans"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:23:31.135052",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:23:31.135052",
+    "updated_at": "2025-09-21T20:23:31.135052",
+    "reviewed_at": "2025-09-21T20:23:31.135052",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "5201a28c-061e-4d31-adf5-820a5256cc57": {
+    "id": "5201a28c-061e-4d31-adf5-820a5256cc57",
+    "user_id": "test_user_123",
+    "front": "Which mountain range contains Mount Everest?",
+    "back": "The Himalayas",
+    "Domains": [
+      "geography",
+      "mountains"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:23:31.136433",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:23:31.136433",
+    "updated_at": "2025-09-21T20:23:31.136433",
+    "reviewed_at": "2025-09-21T20:23:31.136433",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "86d908c4-2f01-45ec-b614-604a87ac3b33": {
+    "id": "86d908c4-2f01-45ec-b614-604a87ac3b33",
+    "user_id": "test_user_123",
+    "front": "What is the capital of Japan?",
+    "back": "Tokyo",
+    "Domains": [
+      "geography",
+      "asia"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:23:31.137561",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:23:31.137561",
+    "updated_at": "2025-09-21T20:23:31.137561",
+    "reviewed_at": "2025-09-21T20:23:31.137561",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "cde95649-713d-4115-add4-9bc1521ebe77": {
+    "id": "cde95649-713d-4115-add4-9bc1521ebe77",
+    "user_id": "test_user_123",
+    "front": "What is the capital of France?",
+    "back": "Paris",
+    "Domains": [
+      "geography",
+      "europe"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:23:46.344738",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:23:46.344738",
+    "updated_at": "2025-09-21T20:23:46.344738",
+    "reviewed_at": "2025-09-21T20:23:46.344738",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "951555af-15f7-42c8-aba2-75bad0cd4ecd": {
+    "id": "951555af-15f7-42c8-aba2-75bad0cd4ecd",
+    "user_id": "test_user_123",
+    "front": "What is the largest ocean?",
+    "back": "Pacific Ocean",
+    "Domains": [
+      "geography",
+      "oceans"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:23:46.347387",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:23:46.347387",
+    "updated_at": "2025-09-21T20:23:46.347387",
+    "reviewed_at": "2025-09-21T20:23:46.347387",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "d42133d2-cf5a-4a08-9469-17b7445d6ba5": {
+    "id": "d42133d2-cf5a-4a08-9469-17b7445d6ba5",
+    "user_id": "test_user_123",
+    "front": "Which mountain range contains Mount Everest?",
+    "back": "The Himalayas",
+    "Domains": [
+      "geography",
+      "mountains"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:23:46.349786",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:23:46.349786",
+    "updated_at": "2025-09-21T20:23:46.349786",
+    "reviewed_at": "2025-09-21T20:23:46.349786",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "9efcb080-e85a-41d1-8865-ebfbc31277b0": {
+    "id": "9efcb080-e85a-41d1-8865-ebfbc31277b0",
+    "user_id": "test_user_123",
+    "front": "What is the capital of Japan?",
+    "back": "Tokyo",
+    "Domains": [
+      "geography",
+      "asia"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:23:46.352017",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:23:46.352017",
+    "updated_at": "2025-09-21T20:23:46.352017",
+    "reviewed_at": "2025-09-21T20:23:46.352017",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "8334b272-96d9-4efd-a0d4-1677b2f6492c": {
+    "id": "8334b272-96d9-4efd-a0d4-1677b2f6492c",
+    "user_id": "test_user_123",
+    "front": "What is the capital of France?",
+    "back": "Paris",
+    "Domains": [
+      "geography",
+      "europe"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:25:01.751774",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:25:01.751774",
+    "updated_at": "2025-09-21T20:25:01.751774",
+    "reviewed_at": "2025-09-21T20:25:01.751774",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "4d50ef3e-4a01-4df7-93fd-cb75068e13c1": {
+    "id": "4d50ef3e-4a01-4df7-93fd-cb75068e13c1",
+    "user_id": "test_user_123",
+    "front": "What is the largest ocean?",
+    "back": "Pacific Ocean",
+    "Domains": [
+      "geography",
+      "oceans"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:25:01.754865",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:25:01.754865",
+    "updated_at": "2025-09-21T20:25:01.754865",
+    "reviewed_at": "2025-09-21T20:25:01.754865",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "1e1c1f9d-5f04-419e-bbe4-b5625e7fcd18": {
+    "id": "1e1c1f9d-5f04-419e-bbe4-b5625e7fcd18",
+    "user_id": "test_user_123",
+    "front": "Which mountain range contains Mount Everest?",
+    "back": "The Himalayas",
+    "Domains": [
+      "geography",
+      "mountains"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:25:01.757743",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:25:01.757743",
+    "updated_at": "2025-09-21T20:25:01.757743",
+    "reviewed_at": "2025-09-21T20:25:01.757743",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "83320a52-ca29-4b85-ac62-c78c2589b39a": {
+    "id": "83320a52-ca29-4b85-ac62-c78c2589b39a",
+    "user_id": "test_user_123",
+    "front": "What is the capital of Japan?",
+    "back": "Tokyo",
+    "Domains": [
+      "geography",
+      "asia"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:25:01.760677",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:25:01.760677",
+    "updated_at": "2025-09-21T20:25:01.760677",
+    "reviewed_at": "2025-09-21T20:25:01.760677",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "6f251211-d325-4b16-bdb5-42c7d92df9b4": {
+    "id": "6f251211-d325-4b16-bdb5-42c7d92df9b4",
+    "user_id": "test_user_123",
+    "front": "What is the capital of France?",
+    "back": "Paris",
+    "Domains": [
+      "geography",
+      "europe"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:35:42.112585",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:35:42.112585",
+    "updated_at": "2025-09-21T20:35:42.112585",
+    "reviewed_at": "2025-09-21T20:35:42.112585",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "3c16512b-59d8-4932-a0f2-08930c969902": {
+    "id": "3c16512b-59d8-4932-a0f2-08930c969902",
+    "user_id": "test_user_123",
+    "front": "What is the largest ocean?",
+    "back": "Pacific Ocean",
+    "Domains": [
+      "geography",
+      "oceans"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:35:42.116839",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:35:42.116839",
+    "updated_at": "2025-09-21T20:35:42.116839",
+    "reviewed_at": "2025-09-21T20:35:42.116839",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "14cc3a94-8d2d-4a7c-b1e3-43db320cb49c": {
+    "id": "14cc3a94-8d2d-4a7c-b1e3-43db320cb49c",
+    "user_id": "test_user_123",
+    "front": "Which mountain range contains Mount Everest?",
+    "back": "The Himalayas",
+    "Domains": [
+      "geography",
+      "mountains"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:35:42.120487",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:35:42.120487",
+    "updated_at": "2025-09-21T20:35:42.120487",
+    "reviewed_at": "2025-09-21T20:35:42.120487",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "b5c74d19-7e04-436a-8906-18a4fe221ec2": {
+    "id": "b5c74d19-7e04-436a-8906-18a4fe221ec2",
+    "user_id": "test_user_123",
+    "front": "What is the capital of Japan?",
+    "back": "Tokyo",
+    "Domains": [
+      "geography",
+      "asia"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:35:42.124391",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:35:42.124391",
+    "updated_at": "2025-09-21T20:35:42.124391",
+    "reviewed_at": "2025-09-21T20:35:42.124391",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "cb01766d-c9f5-4966-86ec-b0dc2c5dea72": {
+    "id": "cb01766d-c9f5-4966-86ec-b0dc2c5dea72",
+    "user_id": "test_user_123",
+    "front": "What is the capital of France?",
+    "back": "Paris",
+    "Domains": [
+      "geography",
+      "europe"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:35:51.622360",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:35:51.622360",
+    "updated_at": "2025-09-21T20:35:51.622360",
+    "reviewed_at": "2025-09-21T20:35:51.622360",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "a893f5e5-eb77-4da8-86cb-3c5c65ea4581": {
+    "id": "a893f5e5-eb77-4da8-86cb-3c5c65ea4581",
+    "user_id": "test_user_123",
+    "front": "What is the largest ocean?",
+    "back": "Pacific Ocean",
+    "Domains": [
+      "geography",
+      "oceans"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:35:51.625040",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:35:51.625040",
+    "updated_at": "2025-09-21T20:35:51.625040",
+    "reviewed_at": "2025-09-21T20:35:51.625040",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "46b95dfb-2859-4f6d-853b-582f5261eebd": {
+    "id": "46b95dfb-2859-4f6d-853b-582f5261eebd",
+    "user_id": "test_user_123",
+    "front": "Which mountain range contains Mount Everest?",
+    "back": "The Himalayas",
+    "Domains": [
+      "geography",
+      "mountains"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:35:51.627496",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:35:51.627496",
+    "updated_at": "2025-09-21T20:35:51.627496",
+    "reviewed_at": "2025-09-21T20:35:51.627496",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  },
+  "735dd7c0-0ddc-41fd-9d2f-6460563eadae": {
+    "id": "735dd7c0-0ddc-41fd-9d2f-6460563eadae",
+    "user_id": "test_user_123",
+    "front": "What is the capital of Japan?",
+    "back": "Tokyo",
+    "Domains": [
+      "geography",
+      "asia"
+    ],
+    "scheduling": {
+      "algorithm": "sm2",
+      "ease_factor": 2.5,
+      "interval_days": 1,
+      "repetitions": 0,
+      "next_review_date": "2025-09-21T20:35:51.629405",
+      "last_review_date": null
+    },
+    "created_at": "2025-09-21T20:35:51.629405",
+    "updated_at": "2025-09-21T20:35:51.629405",
+    "reviewed_at": "2025-09-21T20:35:51.629405",
+    "response_time_seconds": null,
+    "kg_mapping": null,
+    "anki_note_id": null
+  }
+}

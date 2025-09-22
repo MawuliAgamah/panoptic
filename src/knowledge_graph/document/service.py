@@ -21,7 +21,7 @@ class DocumentService:
             llm_provider=llm_provider
         )
         
-    def add_document(self, document_path, document_type=None, document_id=None, cache=True):
+    def add_document(self, document_path, document_type=None, document_id=None, domain=None, tags=None, cache=True):
         """Add a document to the system"""
         try:
             # Generate document ID if not provided
@@ -29,7 +29,7 @@ class DocumentService:
                 document_id = str(uuid.uuid4())
                 
             # Process document
-            document = self.processor.process_document(document_path, document_id)
+            document = self.processor.process_document(document_path, document_id, domain=domain, tags=tags)
             if document is None:
                 self.logger.error("Failed to process document")
                 return None

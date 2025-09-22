@@ -87,7 +87,8 @@ class JSONFlashcardDB:
         """Create a new deck"""
         with self._lock:
             decks = self._read_json_file(self.decks_file)
-            deck_id = deck_data['deck_id']
+            # Handle both old 'deck_id' and new 'id' field names
+            deck_id = deck_data.get('id') or deck_data.get('deck_id')
 
             if deck_id in decks:
                 self.logger.warning(f"Deck {deck_id} already exists")
@@ -152,7 +153,8 @@ class JSONFlashcardDB:
         """Create a new card"""
         with self._lock:
             cards = self._read_json_file(self.cards_file)
-            card_id = card_data['card_id']
+            # Handle both old 'card_id' and new 'id' field names
+            card_id = card_data.get('id') or card_data.get('card_id')
 
             if card_id in cards:
                 self.logger.warning(f"Card {card_id} already exists")

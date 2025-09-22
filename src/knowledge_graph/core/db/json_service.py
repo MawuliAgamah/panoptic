@@ -5,6 +5,7 @@ Integrates the existing JsonKnowledgeStore with the knowledge graph client.
 
 import logging
 from typing import Dict, List, Any, Optional
+from collections import defaultdict
 from services.knowledge_store import JsonKnowledgeStore
 
 logger = logging.getLogger(__name__)
@@ -142,6 +143,193 @@ class JsonKnowledgeGraphService:
             'relationships': relationship_results,
             'total_results': len(entity_results) + len(relationship_results)
         }
+
+    def get_all_domains(self) -> List[str]:
+        """
+        Get all unique domains from entity metadata.
+        
+        Returns:
+            List of unique domain names
+        """
+        entities = self.get_entities()
+        domains = set()
+        
+        for entity in entities:
+            metadata = entity.get('metadata', {})
+            # Check for domains in metadata
+            if 'domains' in metadata:
+                domains.update(metadata['domains'])
+            # Check for categories in metadata
+            if 'categories' in metadata:
+                domains.update(metadata['categories'])
+            # Check for tags in metadata
+            if 'tags' in metadata:
+                domains.update(metadata['tags'])
+        
+        return sorted(list(domains))
+    
+    def get_all_document_ids(self) -> List[str]:
+        """
+        Get all unique document IDs from entities.
+        
+        Returns:
+            List of unique document IDs
+        """
+        entities = self.get_entities()
+        document_ids = set()
+        
+        for entity in entities:
+            document_ids.update(entity.get('document_ids', []))
+        
+        return sorted(list(document_ids))
+
+    # --- Custom helpers for app-managed nodes/links ---
+    def add_custom_entity(self, name: str, entity_type: str = "general", metadata: Optional[Dict[str, Any]] = None,
+                          document_id: Optional[str] = None) -> Dict[str, Any]:
+        """Add an entity with custom metadata (used for user-created nodes)."""
+        return self.knowledge_store.add_entity(name=name, entity_type=entity_type, document_id=document_id, metadata=metadata or {})
+
+    def add_custom_relationship(self, source_name: str, relation_type: str, target_name: str,
+                                document_id: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Add a relationship by entity names (new format)."""
+        return self.knowledge_store.add_relationship(source_entity=source_name, relation_type=relation_type,
+                                                     target_entity=target_name, document_id=document_id, metadata=metadata or {})
+
+    def get_entity_by_id(self, entity_id: int) -> Optional[Dict[str, Any]]:
+        for e in self.knowledge_store.get_entities():
+            if e.get('id') == entity_id:
+                return e
+        return None
+
+    def get_entity_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+        for e in self.knowledge_store.get_entities():
+            if e.get('name', '').lower() == name.lower():
+                return e
+        return None
+
+    def add_entities_batch(self, entities_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Add multiple entities in batch and return the created entities.
+        
+        Args:
+            entities_data: List of entity dictionaries
+            
+        Returns:
+            List of created entity objects with IDs
+        """
+        created_entities = []
+        for entity_data in entities_data:
+            try:
+                entity = self.add_custom_entity(
+                    name=entity_data.get('name'),
+                    entity_type=entity_data.get('type', 'extracted'),
+                    metadata=entity_data.get('metadata', {}),
+                    document_id=entity_data.get('document_id')
+                )
+                created_entities.append(entity)
+                logger.debug(f"Added entity: {entity['name']} (ID: {entity['id']})")
+            except Exception as e:
+                logger.warning(f"Failed to add entity {entity_data.get('name')}: {e}")
+        
+        return created_entities
+
+    def add_relationships_batch(self, relationships_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Add multiple relationships in batch and return the created relationships.
+        
+        Args:
+            relationships_data: List of relationship dictionaries
+            
+        Returns:
+            List of created relationship objects with IDs
+        """
+        created_relationships = []
+        for rel_data in relationships_data:
+            try:
+                relationship = self.add_custom_relationship(
+                    source_name=rel_data.get('source_entity') or rel_data.get('source'),
+                    relation_type=rel_data.get('relation_type') or rel_data.get('type'),
+                    target_name=rel_data.get('target_entity') or rel_data.get('target'),
+                    document_id=rel_data.get('document_id'),
+                    metadata=rel_data.get('metadata', {})
+                )
+                created_relationships.append(relationship)
+                logger.debug(f"Added relationship: {relationship.get('source_entity')} -> {relationship.get('target_entity')}")
+            except Exception as e:
+                logger.warning(f"Failed to add relationship {rel_data}: {e}")
+        
+        return created_relationships
+
+    def clear_knowledge_store(self) -> Dict[str, Any]:
+        """
+        Clear all entities and relationships from the knowledge store.
+        
+        Returns:
+            Dictionary with counts of cleared items
+        """
+        try:
+            # Get current counts before clearing
+            entities_before = len(self.get_entities())
+            relationships_before = len(self.get_relationships())
+            
+            # Clear the knowledge store
+            self.knowledge_store.clear_all_data()
+            
+            # Get counts after clearing
+            entities_after = len(self.get_entities())
+            relationships_after = len(self.get_relationships())
+            
+            result = {
+                'entities_cleared': entities_before - entities_after,
+                'relationships_cleared': relationships_before - relationships_after,
+                'entities_remaining': entities_after,
+                'relationships_remaining': relationships_after,
+                'success': True
+            }
+            
+            logger.info(f"Knowledge store cleared: {result['entities_cleared']} entities, {result['relationships_cleared']} relationships")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to clear knowledge store: {e}")
+            return {
+                'entities_cleared': 0,
+                'relationships_cleared': 0,
+                'entities_remaining': len(self.get_entities()),
+                'relationships_remaining': len(self.get_relationships()),
+                'success': False,
+                'error': str(e)
+            }
+    
+    def get_domains_by_document(self) -> Dict[str, List[str]]:
+        """
+        Get domains organized by document ID.
+        
+        Returns:
+            Dictionary mapping document IDs to lists of domains
+        """
+        entities = self.get_entities()
+        doc_domains = defaultdict(set)
+        
+        for entity in entities:
+            doc_ids = entity.get('document_ids', [])
+            metadata = entity.get('metadata', {})
+            
+            # Collect domains from metadata
+            domains = set()
+            if 'domains' in metadata:
+                domains.update(metadata['domains'])
+            if 'categories' in metadata:
+                domains.update(metadata['categories'])
+            if 'tags' in metadata:
+                domains.update(metadata['tags'])
+            
+            # Add domains to each document
+            for doc_id in doc_ids:
+                doc_domains[doc_id].update(domains)
+        
+        # Convert sets to sorted lists
+        return {doc_id: sorted(list(domains)) for doc_id, domains in doc_domains.items()}
 
     def close(self):
         """Close the service (no-op for JSON storage)."""

@@ -1,5 +1,8 @@
-"""Web server module for knowledge graph visualization"""
+"""
+Web module for the AI Module application.
+Exports the web server functionality from the application.server module.
+"""
 
-from .server import WebServer, create_web_server, run_web_server
+from application.server.server import run_web_server
 
-__all__ = ["WebServer", "create_web_server", "run_web_server"]
+__all__ = ['run_web_server']

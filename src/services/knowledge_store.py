@@ -74,11 +74,14 @@ class JsonKnowledgeStore:
         # Check if entity already exists
         existing_entity = self._find_entity(name)
         if existing_entity:
-            # Update existing entity with new document reference
+            # Update existing entity with new document reference and metadata
             if document_id and document_id not in existing_entity.get("document_ids", []):
                 existing_entity.setdefault("document_ids", []).append(document_id)
-                existing_entity["last_updated"] = datetime.now().isoformat()
-                self._save_data()
+            
+            # Update metadata with new information
+            existing_entity["metadata"] = metadata
+            existing_entity["last_updated"] = datetime.now().isoformat()
+            self._save_data()
             return existing_entity
 
         # Create new entity
@@ -279,6 +282,22 @@ class JsonKnowledgeStore:
             )),
             "last_updated": self.data.get("metadata", {}).get("last_updated")
         }
+
+    def clear_all_data(self) -> None:
+        """Clear all data from the knowledge store."""
+        self.data = {
+            "facts": [],
+            "entities": [],
+            "relationships": [],
+            "metadata": {
+                "version": "1.0",
+                "last_updated": datetime.now().isoformat(),
+                "total_facts": 0,
+                "total_entities": 0,
+                "total_relationships": 0
+            }
+        }
+        self._save_data()
 
     def _update_metadata(self) -> None:
         self.data["metadata"] = {

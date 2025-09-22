@@ -1,0 +1,1283 @@
+<!-- Graph Canvas Component - Core D3.js Visualization -->
+<div class="graph-canvas-component" id="graph-canvas">
+    <div class="graph-container">
+        <svg id="graph" width="100%" height="600"></svg>
+    </div>
+</div>
+
+<style>
+    .graph-canvas-component {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+    }
+
+    .graph-container {
+        position: relative;
+    }
+
+    #graph {
+        width: 100%;
+        height: 600px;
+        display: block;
+        background: #fafafa;
+    }
+
+    /* Graph elements styling */
+    .link {
+        stroke: #95a5a6;
+        stroke-width: 2px;
+        marker-end: url(#arrowhead);
+    }
+
+    .link-label {
+        font-size: 10px;
+        fill: #666;
+        text-anchor: middle;
+        pointer-events: none;
+    }
+
+    .node {
+        stroke: #2c3e50;
+        stroke-width: 1.5px;
+        fill: #3498db;
+        cursor: pointer;
+    }
+
+    .node:hover {
+        fill: #e74c3c;
+        stroke-width: 2.5px;
+    }
+
+    .node-label {
+        font-size: 12px;
+        fill: #2c3e50;
+        text-anchor: middle;
+        pointer-events: none;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    /* Tooltip */
+    .tooltip {
+        position: absolute;
+        text-align: center;
+        padding: 8px;
+        font-size: 12px;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        border-radius: 4px;
+        pointer-events: none;
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .user-node {
+        stroke: #e74c3c !important;
+        stroke-width: 3px !important;
+        opacity: 0.95;
+    }
+
+    .user-node:hover {
+        stroke: #c0392b !important;
+        stroke-width: 4px !important;
+    }
+
+    .node-creator-dialog {
+        position: absolute;
+        background: white;
+        border: 2px solid #3498db;
+        border-radius: 8px;
+        padding: 16px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 2000;
+        min-width: 200px;
+    }
+
+    .node-creator-dialog h4 {
+        margin: 0 0 12px 0;
+        color: #2c3e50;
+        font-size: 14px;
+    }
+
+    .node-creator-dialog input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #bdc3c7;
+        border-radius: 4px;
+        margin-bottom: 12px;
+        font-size: 13px;
+        box-sizing: border-box;
+    }
+
+    .node-creator-dialog .actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+
+    .node-creator-dialog button {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+    }
+
+    .node-creator-dialog button#confirm-create {
+        background: #3498db;
+        color: white;
+    }
+
+    .node-creator-dialog button.secondary {
+        background: #95a5a6;
+        color: white;
+    }
+
+    /* Document Upload Dialog */
+    .document-upload-dialog {
+        position: absolute;
+        background: white;
+        border: 2px solid #27ae60;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        z-index: 2000;
+        min-width: 300px;
+        max-width: 400px;
+    }
+
+    .document-upload-dialog h4 {
+        margin: 0 0 8px 0;
+        color: #27ae60;
+        font-size: 16px;
+    }
+
+    .document-upload-dialog p {
+        margin: 0 0 16px 0;
+        color: #7f8c8d;
+        font-size: 12px;
+        line-height: 1.4;
+    }
+
+    .document-upload-dialog .upload-form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .document-upload-dialog .form-row {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .document-upload-dialog .form-row label {
+        font-size: 12px;
+        color: #2c3e50;
+        font-weight: 500;
+    }
+
+    .document-upload-dialog input[type="text"],
+    .document-upload-dialog input[type="file"] {
+        padding: 8px;
+        border: 1px solid #bdc3c7;
+        border-radius: 4px;
+        font-size: 13px;
+        box-sizing: border-box;
+    }
+
+    .document-upload-dialog .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .document-upload-dialog .checkbox-row label {
+        font-size: 12px;
+        color: #2c3e50;
+        cursor: pointer;
+    }
+
+    .document-upload-dialog .actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 16px;
+    }
+
+    .document-upload-dialog button {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+    }
+
+    .document-upload-dialog button.primary {
+        background: #27ae60;
+        color: white;
+    }
+
+    .document-upload-dialog button.secondary {
+        background: #95a5a6;
+        color: white;
+    }
+
+    /* Upload Progress */
+    .upload-progress {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border: 2px solid #3498db;
+        border-radius: 8px;
+        padding: 30px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        z-index: 2500;
+        text-align: center;
+    }
+
+    .upload-progress .progress-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .upload-progress .spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid #ecf0f1;
+        border-top: 3px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    .upload-progress p {
+        margin: 0;
+        color: #2c3e50;
+        font-size: 14px;
+    }
+
+    /* Notifications */
+    .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 16px 20px;
+        border-radius: 6px;
+        color: white;
+        font-size: 14px;
+        z-index: 3000;
+        max-width: 400px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .notification-success {
+        background: #27ae60;
+    }
+
+    .notification-error {
+        background: #e74c3c;
+    }
+
+    .notification-info {
+        background: #3498db;
+    }
+
+    /* Selected node styling */
+    .node.selected {
+        filter: drop-shadow(0 0 8px #f39c12);
+    }
+
+    /* Hierarchy link styling */
+    .hierarchy-link {
+        stroke: #34495e;
+        stroke-width: 3px;
+    }
+
+    .relationship-link {
+        stroke: #95a5a6;
+        stroke-width: 2px;
+        stroke-dasharray: 5, 5;
+    }
+
+    /* Floating node creation dialog */
+    .node-creator-dialog {
+        position: absolute;
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        padding: 10px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+        z-index: 2000;
+        min-width: 260px;
+    }
+
+    .node-creator-dialog h4 {
+        margin: 0 0 8px 0;
+        font-size: 14px;
+        color: #2c3e50;
+    }
+
+    .node-creator-dialog input[type="text"] {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px;
+        border: 1px solid #dcdcdc;
+        border-radius: 4px;
+        font-size: 13px;
+        margin-bottom: 8px;
+    }
+
+    .node-creator-dialog .actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+
+    .node-creator-dialog button {
+        background: #3498db;
+        color: #fff;
+        border: none;
+        padding: 6px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+    }
+
+    .node-creator-dialog button.secondary {
+        background: #95a5a6;
+    }
+</style>
+
+<script>
+    // Graph Canvas Component - Core D3.js visualization
+    (function () {
+        const graphCanvas = {
+            svg: null,
+            g: null,
+            simulation: null,
+            tooltip: null,
+            width: 800,
+            height: 600,
+            zoom: null,
+            data: null,
+            filteredData: null,
+            retryCount: 0,
+            maxRetries: 10,
+            // Interactive node creation state
+            userNodes: [], // user-created hierarchical nodes
+            NODE_TYPES: { FIELD: 'field', TOPIC: 'topic', SUBTOPIC: 'subtopic', EXTRACTED: 'extracted' },
+            // Node selection state
+            selectedNode: null,
+            documentUploadMode: false,
+
+            init: function () {
+                try {
+                    this.setupSVG();
+                    this.setupSimulation();
+                    this.setupTooltip();
+                    this.creationModeEnabled = false;
+                    // Listen to creation mode changes from controls
+                    document.addEventListener('graph:creationModeChanged', (e) => {
+                        this.creationModeEnabled = !!e.detail;
+                        console.log('🎛️ Creation mode:', this.creationModeEnabled ? 'ON' : 'OFF');
+                    });
+                    // Load user graph and re-render when available
+                    this.loadUserGraph().then(() => {
+                        if (this.data) this.render(this.data);
+                    });
+                    console.log('🎨 Graph canvas initialized');
+                } catch (error) {
+                    console.error('❌ Error initializing graph canvas:', error);
+                    // Retry initialization after a delay
+                    setTimeout(() => this.init(), 200);
+                }
+            },
+
+            setupSVG: function () {
+                // Wait for DOM element to be available
+                const graphElement = document.getElementById("graph");
+                if (!graphElement) {
+                    if (this.retryCount < this.maxRetries) {
+                        this.retryCount++;
+                        console.warn(`Graph element not found, retrying... (${this.retryCount}/${this.maxRetries})`);
+                        setTimeout(() => this.setupSVG(), 100);
+                        return;
+                    } else {
+                        console.error('❌ Graph element not found after maximum retries');
+                        return;
+                    }
+                }
+
+                this.svg = d3.select("#graph");
+                const node = this.svg.node();
+                if (!node) {
+                    if (this.retryCount < this.maxRetries) {
+                        this.retryCount++;
+                        console.warn(`SVG node not available, retrying... (${this.retryCount}/${this.maxRetries})`);
+                        setTimeout(() => this.setupSVG(), 100);
+                        return;
+                    } else {
+                        console.error('❌ SVG node not available after maximum retries');
+                        return;
+                    }
+                }
+
+                // Reset retry count on success
+                this.retryCount = 0;
+
+                const rect = node.getBoundingClientRect();
+                this.width = rect.width || 800;
+                this.height = 600;
+
+                this.g = this.svg.append("g");
+
+                // Create zoom behavior
+                this.zoom = d3.zoom()
+                    .scaleExtent([0.1, 4])
+                    .on("zoom", (event) => {
+                        this.g.attr("transform", event.transform);
+                    });
+
+                this.svg.call(this.zoom);
+
+                // Context menu for creating Field nodes
+                this.svg.on("contextmenu", (event) => {
+                    event.preventDefault();
+                    console.log('🖱️ Right-click detected, creation mode:', this.creationModeEnabled);
+                    const point = d3.pointer(event, this.svg.node());
+                    if (!this.creationModeEnabled) {
+                        // Ephemeral hint to enable creation mode
+                        const hint = d3.select('body').append('div')
+                            .style('position', 'absolute')
+                            .style('left', `${event.pageX + 8}px`)
+                            .style('top', `${event.pageY + 8}px`)
+                            .style('background', '#2c3e50')
+                            .style('color', '#fff')
+                            .style('padding', '6px 8px')
+                            .style('border-radius', '4px')
+                            .style('font-size', '12px')
+                            .style('z-index', '2500')
+                            .style('opacity', '0.95')
+                            .text('Enable Creation Mode in Controls to add nodes');
+                        setTimeout(() => hint.remove(), 1200);
+                        return;
+                    }
+                    console.log('🚀 Showing creation dialog at:', event.pageX, event.pageY);
+                    this.showCreationDialog({
+                        x: event.pageX,
+                        y: event.pageY,
+                        graphX: point[0],
+                        graphY: point[1],
+                        type: this.NODE_TYPES.FIELD,
+                        title: 'Create Field'
+                    });
+                });
+
+                // Create arrow marker for directed edges
+                this.svg.append("defs").selectAll("marker")
+                    .data(["arrowhead"])
+                    .enter().append("marker")
+                    .attr("id", d => d)
+                    .attr("viewBox", "0 -5 10 10")
+                    .attr("refX", 25)
+                    .attr("refY", 0)
+                    .attr("markerWidth", 6)
+                    .attr("markerHeight", 6)
+                    .attr("orient", "auto")
+                    .append("path")
+                    .attr("d", "M0,-5L10,0L0,5")
+                    .attr("fill", "#95a5a6");
+            },
+
+            setupSimulation: function () {
+                this.simulation = d3.forceSimulation()
+                    .force("link", d3.forceLink().id(d => d.id).distance(100))
+                    .force("charge", d3.forceManyBody().strength(-200))
+                    .force("center", d3.forceCenter(this.width / 2, this.height / 2))
+                    .force("collision", d3.forceCollide().radius(25));
+            },
+
+            setupTooltip: function () {
+                this.tooltip = d3.select("body").append("div")
+                    .attr("class", "tooltip")
+                    .style("opacity", 0);
+            },
+
+            render: function (data) {
+                if (!data || !data.entities) {
+                    console.warn('No data to render');
+                    return;
+                }
+
+                this.data = data;
+                this.filteredData = this.filteredData || data;
+
+                // Merge extracted entities with user-created nodes for rendering
+                const baseEntities = this.filteredData.entities || [];
+                const relationships = this.filteredData.relationships || [];
+
+                // Apply fixed positions for user-created nodes from metadata
+                const entities = baseEntities.map(entity => {
+                    if (entity.metadata && entity.metadata.is_user_created) {
+                        // Set fixed position if available in metadata
+                        if (entity.metadata.x !== undefined && entity.metadata.y !== undefined) {
+                            entity.fx = entity.metadata.x;
+                            entity.fy = entity.metadata.y;
+                            entity.x = entity.metadata.x;
+                            entity.y = entity.metadata.y;
+                        }
+                        entity.isUserCreated = true;
+                        entity.level = entity.metadata.level || 0;
+                    }
+                    return entity;
+                });
+
+                // Clear previous render
+                this.g.selectAll("*").remove();
+
+                // Create entity name to ID mapping
+                const entityNameToId = new Map();
+                entities.forEach(entity => {
+                    entityNameToId.set(entity.name, entity.id);
+                });
+
+                console.log('🗺️ Entity name mapping:', Array.from(entityNameToId.entries()).slice(0, 5));
+                console.log('📊 First few relationships:', relationships.slice(0, 3));
+                console.log('🎯 User-created entities:', entities.filter(e => e.metadata?.is_user_created).map(e => `${e.name} (id: ${e.id})`));
+
+                // Process relationships for D3 - convert entity names to IDs
+                const links = relationships.map((rel, index) => {
+                    const sourceId = rel.source_id || entityNameToId.get(rel.source_entity);
+                    const targetId = rel.target_id || entityNameToId.get(rel.target_entity);
+
+                    // Debug missing mappings
+                    if (!sourceId && rel.source_entity) {
+                        console.warn(`⚠️ Source entity not found: "${rel.source_entity}" in relationship ${index + 1}`);
+                    }
+                    if (!targetId && rel.target_entity) {
+                        console.warn(`⚠️ Target entity not found: "${rel.target_entity}" in relationship ${index + 1}`);
+                    }
+
+                    return {
+                        source: sourceId,
+                        target: targetId,
+                        type: rel.relation_type || rel.relationship_type || rel.type || '',
+                        ...rel
+                    };
+                }).filter(link => {
+                    const isValid = link.source && link.target;
+                    if (!isValid) {
+                        console.warn(`❌ Filtered out invalid link:`, link);
+                    }
+                    return isValid;
+                }); // Only keep links with valid source/target
+
+                console.log(`✅ Created ${links.length} valid links from ${relationships.length} relationships`);
+                console.log('🔗 Relationship types found:', [...new Set(links.map(l => l.type))]);
+
+                // Create links with proper styling based on relationship type
+                const link = this.g.append("g")
+                    .attr("class", "links")
+                    .selectAll("line")
+                    .data(links)
+                    .enter().append("line")
+                    .attr("class", d => `link link-${(d.type || 'default').replace(/[^a-zA-Z0-9]/g, '-')}`)
+                    .attr("stroke", d => {
+                        if (d.type === 'is_parent_of') return '#34495e'; // Dark blue for hierarchy
+                        if (d.type === 'contains') return '#27ae60'; // Green for document containment  
+                        return '#95a5a6'; // Default gray
+                    })
+                    .attr("stroke-width", d => {
+                        if (d.type === 'is_parent_of') return 3; // Thicker for hierarchy
+                        if (d.type === 'contains') return 2.5;
+                        return 2; // Default
+                    })
+                    .attr("marker-end", "url(#arrowhead)")
+                    .on("mouseover", (event, d) => this.showTooltip(event, `${d.source.id || d.source} —[${d.type}]→ ${d.target.id || d.target}`))
+                    .on("mouseout", () => this.hideTooltip());
+
+                // Create link labels
+                const linkLabel = this.g.append("g")
+                    .attr("class", "link-labels")
+                    .selectAll("text")
+                    .data(links)
+                    .enter().append("text")
+                    .attr("class", "link-label")
+                    .text(d => d.type);
+
+                // Create nodes
+                const node = this.g.append("g")
+                    .attr("class", "nodes")
+                    .selectAll("circle")
+                    .data(entities)
+                    .enter().append("circle")
+                    .attr("class", d => `node ${d.isUserCreated || (d.metadata && d.metadata.is_user_created) ? 'user-node' : 'data-node'}`)
+                    .attr("r", d => this.getNodeStyle(d).radius)
+                    .attr("fill", d => this.getNodeStyle(d).color)
+                    .call(d3.drag()
+                        .on("start", (event, d) => this.dragstarted(event, d))
+                        .on("drag", (event, d) => this.dragged(event, d))
+                        .on("end", (event, d) => this.dragended(event, d)))
+                    .on("mouseover", (event, d) => this.showNodeTooltip(event, d))
+                    .on("mouseout", () => this.hideTooltip())
+                    .on("click", (event, d) => this.handleNodeClick(event, d));
+
+                // Create node labels
+                const nodeLabel = this.g.append("g")
+                    .attr("class", "node-labels")
+                    .selectAll("text")
+                    .data(entities)
+                    .enter().append("text")
+                    .attr("class", "node-label")
+                    .text(d => d.name)
+                    .attr("dy", 4);
+
+                // Update simulation
+                this.simulation
+                    .nodes(entities)
+                    .force("link").links(links);
+
+                this.simulation.on("tick", () => {
+                    link
+                        .attr("x1", d => d.source.x)
+                        .attr("y1", d => d.source.y)
+                        .attr("x2", d => d.target.x)
+                        .attr("y2", d => d.target.y);
+
+                    linkLabel
+                        .attr("x", d => (d.source.x + d.target.x) / 2)
+                        .attr("y", d => (d.source.y + d.target.y) / 2);
+
+                    node
+                        .attr("cx", d => d.x)
+                        .attr("cy", d => d.y);
+
+                    nodeLabel
+                        .attr("x", d => d.x)
+                        .attr("y", d => d.y);
+                });
+
+                this.simulation.restart();
+                console.log('🎨 Graph rendered with', entities.length, 'entities and', links.length, 'links out of', relationships.length, 'total relationships');
+
+                // Update selection highlighting after render
+                this.updateNodeSelection();
+
+                if (links.length === 0 && relationships.length > 0) {
+                    console.warn('⚠️ No valid links created from relationships. Check entity name mapping.');
+                    console.log('First relationship:', relationships[0]);
+                    console.log('Available entities sample:', entities.slice(0, 5).map(e => `"${e.name}"`));
+
+                    // Check for potential case/whitespace issues
+                    const allEntityNames = entities.map(e => e.name);
+                    const firstRelSource = relationships[0]?.source_entity;
+                    const firstRelTarget = relationships[0]?.target_entity;
+
+                    console.log('🔍 Exact match check for first relationship:');
+                    console.log(`Source "${firstRelSource}" found:`, allEntityNames.includes(firstRelSource));
+                    console.log(`Target "${firstRelTarget}" found:`, allEntityNames.includes(firstRelTarget));
+                } else if (links.length > 0) {
+                    console.log('✅ Successfully created links:', links.slice(0, 2));
+                }
+            },
+
+            // Filter data and re-render
+            applyFilter: function (filterFn) {
+                if (!this.data) return;
+
+                const filteredEntities = this.data.entities.filter(filterFn);
+                const entityIds = new Set(filteredEntities.map(e => e.id));
+
+                // Create entity name to ID mapping for filtering
+                const entityNameToId = new Map();
+                this.data.entities.forEach(entity => {
+                    entityNameToId.set(entity.name, entity.id);
+                });
+
+                const filteredRelationships = this.data.relationships.filter(rel => {
+                    const sourceId = rel.source_id || entityNameToId.get(rel.source_entity);
+                    const targetId = rel.target_id || entityNameToId.get(rel.target_entity);
+                    return entityIds.has(sourceId) && entityIds.has(targetId);
+                });
+
+                this.filteredData = {
+                    entities: filteredEntities,
+                    relationships: filteredRelationships,
+                    metadata: {
+                        ...this.data.metadata,
+                        filtered: true
+                    }
+                };
+
+                this.render(this.data);
+                this.emit('dataFiltered', this.filteredData);
+            },
+
+            // Reset filter
+            clearFilter: function () {
+                this.filteredData = this.data;
+                this.render(this.data);
+                this.emit('dataFiltered', this.filteredData);
+            },
+
+            // Update layout parameters
+            updateLayoutStrength: function (strength) {
+                this.simulation.force("charge").strength(strength);
+                this.simulation.alpha(0.3).restart();
+            },
+
+            updateNodeSize: function (size) {
+                this.g.selectAll(".node").attr("r", size);
+                this.simulation.force("collision").radius(size + 5);
+                this.simulation.alpha(0.1).restart();
+            },
+
+            resetZoom: function () {
+                this.svg.transition()
+                    .duration(750)
+                    .call(this.zoom.transform, d3.zoomIdentity);
+            },
+
+            // Explicit setter so other components can toggle creation mode directly
+            setCreationMode: function (enabled) {
+                this.creationModeEnabled = !!enabled;
+                console.log('🎛️ Creation mode (via setter):', this.creationModeEnabled ? 'ON' : 'OFF');
+            },
+
+            setDocumentUploadMode: function (enabled) {
+                this.documentUploadMode = !!enabled;
+                console.log('📄 Document upload mode:', this.documentUploadMode ? 'ON' : 'OFF');
+                if (!enabled) {
+                    this.clearSelection();
+                }
+            },
+
+            selectNode: function (node) {
+                this.selectedNode = node;
+                console.log('🎯 Selected node:', node.name);
+                this.updateNodeSelection();
+
+                // Dispatch selection event for other components
+                const event = new CustomEvent('graph:nodeSelected', {
+                    detail: { node: node }
+                });
+                document.dispatchEvent(event);
+            },
+
+            clearSelection: function () {
+                this.selectedNode = null;
+                this.updateNodeSelection();
+                console.log('🎯 Selection cleared');
+            },
+
+            updateNodeSelection: function () {
+                // Update visual selection on nodes
+                this.g.selectAll(".node")
+                    .classed("selected", d => this.selectedNode && d.id === this.selectedNode.id)
+                    .attr("stroke-width", d => {
+                        if (this.selectedNode && d.id === this.selectedNode.id) {
+                            return 4; // Thicker stroke for selected
+                        }
+                        const isUserCreated = d.isUserCreated || (d.metadata && d.metadata.is_user_created);
+                        return isUserCreated ? 3 : 2; // Normal stroke
+                    })
+                    .attr("stroke", d => {
+                        if (this.selectedNode && d.id === this.selectedNode.id) {
+                            return '#f39c12'; // Orange for selected
+                        }
+                        const isUserCreated = d.isUserCreated || (d.metadata && d.metadata.is_user_created);
+                        return isUserCreated ? '#e74c3c' : '#fff'; // Red for user-created, white for others
+                    });
+            },
+
+            showCreationDialog: function ({ x, y, graphX, graphY, parent, type, title }) {
+                // Remove any existing dialog
+                d3.select('.node-creator-dialog').remove();
+
+                const dialog = d3.select('body').append('div')
+                    .attr('class', 'node-creator-dialog')
+                    .style('left', `${x}px`)
+                    .style('top', `${y}px`);
+
+                dialog.html(`
+                    <h4>${title}</h4>
+                    <input type="text" placeholder="Enter name..." id="node-name-input" />
+                    <div class="actions">
+                        <button class="secondary" id="cancel-create">Cancel</button>
+                        <button id="confirm-create">Create</button>
+                    </div>
+                `);
+
+                const removeDialog = () => dialog.remove();
+                dialog.select('#cancel-create').on('click', removeDialog);
+
+                dialog.select('#confirm-create').on('click', () => {
+                    const name = dialog.select('#node-name-input').node().value?.trim();
+                    if (!name) return;
+
+                    if (parent) {
+                        this.createChildNode(parent, type, name);
+                    } else {
+                        this.createFieldNode(graphX, graphY, name);
+                    }
+                    removeDialog();
+                });
+
+                // Focus the input
+                setTimeout(() => {
+                    const input = dialog.select('#node-name-input').node();
+                    if (input) input.focus();
+                }, 10);
+            },
+
+            createFieldNode: function (x, y, name) {
+                console.log('🎯 Creating field node:', name, 'at graph coords:', x, y);
+
+                // Call API instead of storing locally
+                fetch('/api/hierarchy/node', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: name,
+                        type: this.NODE_TYPES.FIELD,
+                        level: 0,
+                        metadata: { x, y, is_user_created: true }
+                    })
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        console.log('✅ Field node created:', data.node);
+                        // Reload data to refresh graph
+                        if (window.DataLoader && window.DataLoader.loadData) {
+                            window.DataLoader.loadData();
+                        }
+                    })
+                    .catch(err => {
+                        console.error('❌ Failed to create field node:', err);
+                    });
+            },
+
+            createChildNode: function (parent, childType, name) {
+                console.log('🎯 Creating child node:', name, 'type:', childType, 'parent:', parent.name);
+
+                // Position child node near parent with some variation to avoid overlap
+                const angle = Math.random() * Math.PI * 2; // Random angle
+                const distance = 120 + Math.random() * 60; // Random distance 120-180px
+                const childX = (parent.x || 0) + Math.cos(angle) * distance;
+                const childY = (parent.y || 0) + Math.sin(angle) * distance;
+
+                // Calculate level based on parent's level and metadata
+                const parentLevel = parent.level || (parent.metadata && parent.metadata.level) || 0;
+                const childLevel = parentLevel + 1;
+
+                console.log('📍 Positioning child at:', { x: childX, y: childY }, 'level:', childLevel);
+
+                // Call API instead of storing locally
+                fetch('/api/hierarchy/node', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: name,
+                        type: childType,
+                        level: childLevel,
+                        parent_id: parent.id,
+                        metadata: {
+                            x: childX,
+                            y: childY,
+                            is_user_created: true,
+                            type: childType,
+                            level: childLevel
+                        }
+                    })
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        console.log('✅ Child node created:', data.node);
+                        // Reload data to refresh graph
+                        if (window.DataLoader && window.DataLoader.loadData) {
+                            window.DataLoader.loadData();
+                        }
+                    })
+                    .catch(err => {
+                        console.error('❌ Failed to create child node:', err);
+                    });
+            },
+
+            showDocumentUploadDialog: function (node, event) {
+                console.log('📄 Showing document upload dialog for node:', node.name);
+
+                // Remove any existing dialog
+                d3.select('.document-upload-dialog').remove();
+
+                const dialog = d3.select('body').append('div')
+                    .attr('class', 'document-upload-dialog')
+                    .style('left', `${event.pageX}px`)
+                    .style('top', `${event.pageY}px`);
+
+                dialog.html(`
+                    <h4>Upload Document to "${node.name}"</h4>
+                    <p>Upload a document to extract its knowledge graph and attach it to this node.</p>
+                    <div class="upload-form">
+                        <input type="file" id="document-file" accept=".txt,.md,.pdf,.docx" />
+                        <div class="form-row">
+                            <label for="doc-title">Title:</label>
+                            <input type="text" id="doc-title" placeholder="Enter document title..." />
+                        </div>
+                        <div class="form-row">
+                            <label for="doc-domain">Domain:</label>
+                            <input type="text" id="doc-domain" placeholder="e.g., AI, Marketing, Finance..." />
+                        </div>
+                        <div class="checkbox-row">
+                            <label>
+                                <input type="checkbox" id="auto-extract" checked />
+                                Auto-extract knowledge graph
+                            </label>
+                        </div>
+                        <div class="actions">
+                            <button class="secondary" id="cancel-upload">Cancel</button>
+                            <button id="confirm-upload" class="primary">Upload & Extract</button>
+                        </div>
+                    </div>
+                `);
+
+                const removeDialog = () => dialog.remove();
+                dialog.select('#cancel-upload').on('click', removeDialog);
+
+                dialog.select('#confirm-upload').on('click', () => {
+                    const fileInput = dialog.select('#document-file').node();
+                    const title = dialog.select('#doc-title').node().value?.trim();
+                    const domain = dialog.select('#doc-domain').node().value?.trim();
+                    const autoExtract = dialog.select('#auto-extract').node().checked;
+
+                    if (!fileInput.files[0]) {
+                        alert('Please select a file to upload.');
+                        return;
+                    }
+
+                    if (!title) {
+                        alert('Please enter a title for the document.');
+                        return;
+                    }
+
+                    this.uploadDocument(fileInput.files[0], title, domain, autoExtract, node);
+                    removeDialog();
+                });
+
+                // Focus the title input
+                setTimeout(() => {
+                    const titleInput = dialog.select('#doc-title').node();
+                    if (titleInput) titleInput.focus();
+                }, 10);
+            },
+
+            uploadDocument: function (file, title, domain, autoExtract, parentNode) {
+                console.log('📤 Uploading document:', title, 'to parent node:', parentNode.name);
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('title', title);
+                formData.append('type', 'knowledge_extraction');
+                formData.append('domain', domain || '');
+                formData.append('description', `Document attached to ${parentNode.name}`);
+                formData.append('auto_extract', autoExtract);
+                formData.append('parent_node_id', parentNode.id);
+
+                // Show upload progress
+                this.showUploadProgress(parentNode.name);
+
+                fetch('/api/upload-document', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        console.log('✅ Document uploaded and processed:', data);
+                        this.hideUploadProgress();
+
+                        // Show success message
+                        this.showNotification(`Successfully extracted ${data.entities_extracted} entities from "${title}" and attached to "${parentNode.name}"`, 'success');
+
+                        // Reload data to show new entities
+                        if (window.DataLoader && window.DataLoader.loadData) {
+                            window.DataLoader.loadData();
+                        }
+                    })
+                    .catch(err => {
+                        console.error('❌ Failed to upload document:', err);
+                        this.hideUploadProgress();
+                        this.showNotification('Failed to upload document. Please try again.', 'error');
+                    });
+            },
+
+            showUploadProgress: function (parentName) {
+                d3.select('.upload-progress').remove();
+                const progress = d3.select('body').append('div')
+                    .attr('class', 'upload-progress')
+                    .html(`
+                        <div class="progress-content">
+                            <div class="spinner"></div>
+                            <p>Processing document and extracting knowledge graph...</p>
+                            <p>Attaching to "${parentName}"</p>
+                        </div>
+                    `);
+            },
+
+            hideUploadProgress: function () {
+                d3.select('.upload-progress').remove();
+            },
+
+            showNotification: function (message, type = 'info') {
+                d3.select('.notification').remove();
+                const notification = d3.select('body').append('div')
+                    .attr('class', `notification notification-${type}`)
+                    .html(message);
+
+                setTimeout(() => notification.remove(), 5000);
+            },
+
+            // Persistence (save/load) for user-created hierarchy
+            // These functions are deprecated - user nodes are now stored directly in knowledge_store.json
+            persistUserGraph: async function () {
+                console.log('💾 User nodes are automatically persisted via API');
+            },
+
+            loadUserGraph: async function () {
+                console.log('📥 User nodes are loaded automatically with knowledge store data');
+            },
+
+            // Highlight entity
+            highlightEntity: function (entity) {
+                this.g.selectAll(".node")
+                    .attr("fill", d => d.id === entity.id ? "#e74c3c" : "#3498db")
+                    .attr("r", d => d.id === entity.id ? 20 : 15);
+
+                // Pan to entity if it has coordinates
+                const targetNode = this.data.entities.find(e => e.id === entity.id);
+                if (targetNode && targetNode.x && targetNode.y) {
+                    const transform = d3.zoomIdentity
+                        .translate(this.width / 2 - targetNode.x, this.height / 2 - targetNode.y)
+                        .scale(1.5);
+
+                    this.svg.transition()
+                        .duration(750)
+                        .call(this.zoom.transform, transform);
+                }
+            },
+
+            // Event handlers
+            getNodeStyle: function (node) {
+                const nodeType = node.type || (node.metadata && node.metadata.type) || this.NODE_TYPES.EXTRACTED;
+                const nodeLevel = node.level || (node.metadata && node.metadata.level) || 0;
+                const isUserCreated = node.isUserCreated || (node.metadata && node.metadata.is_user_created);
+
+                // Base styles by type
+                const baseStyles = {
+                    [this.NODE_TYPES.FIELD]: { radius: 24, color: '#2c3e50' },
+                    [this.NODE_TYPES.TOPIC]: { radius: 20, color: '#3498db' },
+                    [this.NODE_TYPES.SUBTOPIC]: { radius: 16, color: '#95a5a6' },
+                    [this.NODE_TYPES.EXTRACTED]: { radius: 12, color: '#e67e22' }
+                };
+
+                let style = baseStyles[nodeType] || baseStyles[this.NODE_TYPES.EXTRACTED];
+
+                // Adjust size based on hierarchy level for subtopics (sub-subtopics, etc.)
+                if (nodeType === this.NODE_TYPES.SUBTOPIC && nodeLevel > 2) {
+                    const levelReduction = (nodeLevel - 2) * 2; // Reduce by 2px per level beyond subtopic
+                    style.radius = Math.max(10, style.radius - levelReduction);
+
+                    // Fade color slightly for deeper levels
+                    const opacity = Math.max(0.7, 1 - (nodeLevel - 2) * 0.1);
+                    if (style.color === '#95a5a6') {
+                        style.color = `rgba(149, 165, 166, ${opacity})`;
+                    }
+                }
+
+                // User-created nodes get slightly different styling
+                if (isUserCreated) {
+                    style.radius += 1; // Slightly larger
+                }
+
+                return style;
+            },
+
+            handleNodeClick: function (event, d) {
+                // Ctrl/Cmd + click adds a child in creation mode
+                if (event.ctrlKey || event.metaKey) {
+                    if (!this.creationModeEnabled) {
+                        console.log('⚠️ Creation mode disabled for child node creation');
+                        return;
+                    }
+                    console.log('🖱️ Ctrl+Click detected on node:', d.name, 'type:', d.type);
+
+                    // Determine child type and label based on parent type
+                    let childType, label;
+                    const nodeType = d.type || (d.metadata && d.metadata.type) || this.NODE_TYPES.EXTRACTED;
+
+                    switch (nodeType) {
+                        case this.NODE_TYPES.FIELD:
+                            childType = this.NODE_TYPES.TOPIC;
+                            label = 'Topic';
+                            break;
+                        case this.NODE_TYPES.TOPIC:
+                            childType = this.NODE_TYPES.SUBTOPIC;
+                            label = 'Subtopic';
+                            break;
+                        case this.NODE_TYPES.SUBTOPIC:
+                            childType = this.NODE_TYPES.SUBTOPIC; // Subtopics can have sub-subtopics
+                            label = 'Sub-subtopic';
+                            break;
+                        case this.NODE_TYPES.EXTRACTED:
+                            // Extracted nodes can have subtopics attached
+                            childType = this.NODE_TYPES.SUBTOPIC;
+                            label = 'Subtopic';
+                            break;
+                        default:
+                            console.warn('Unknown node type for child creation:', nodeType);
+                            return;
+                    }
+
+                    this.showCreationDialog({
+                        x: event.pageX,
+                        y: event.pageY,
+                        parent: d,
+                        type: childType,
+                        title: `Create ${label} for "${d.name}"`
+                    });
+                } else {
+                    // Regular click: select node and show document upload option
+                    this.selectNode(d);
+                    if (this.documentUploadMode) {
+                        this.showDocumentUploadDialog(d, event);
+                    }
+                }
+            },
+
+            promptCreateFieldAt: function (x, y) {
+                const name = prompt('Create Field - Enter name:');
+                if (!name) return;
+                const node = {
+                    id: `field_${Date.now()}`,
+                    name,
+                    type: this.NODE_TYPES.FIELD,
+                    level: 0,
+                    isUserCreated: true,
+                    x, y, fx: x, fy: y
+                };
+                this.userNodes = this.userNodes || [];
+                this.userNodes.push(node);
+                this.render(this.data);
+                this.emit('nodeCreated', node);
+            },
+
+            promptCreateChildFor: function (parent) {
+                const childType = parent.type === this.NODE_TYPES.FIELD ? this.NODE_TYPES.TOPIC : this.NODE_TYPES.SUBTOPIC;
+                const label = childType === this.NODE_TYPES.TOPIC ? 'Topic' : 'Subtopic';
+                const name = prompt(`Create ${label} for "${parent.name}" - Enter name:`);
+                if (!name) return;
+
+                const child = {
+                    id: `${childType}_${Date.now()}`,
+                    name,
+                    type: childType,
+                    level: (parent.level || 0) + 1,
+                    parent_id: parent.id,
+                    isUserCreated: true
+                };
+
+                // Position child near parent
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 60;
+                child.x = (parent.x || 0) + Math.cos(angle) * distance;
+                child.y = (parent.y || 0) + Math.sin(angle) * distance;
+
+                this.userNodes = this.userNodes || [];
+                this.userNodes.push(child);
+
+                // Hierarchy relationship is now created via API in createChildNode
+
+                this.render(this.data);
+                this.emit('nodeCreated', child);
+            },
+            showNodeTooltip: function (event, d) {
+                const content = `
+                <strong>${d.name}</strong><br/>
+                Type: ${d.type || 'Unknown'}<br/>
+                Domain: ${d.domain || 'N/A'}<br/>
+                Documents: ${d.document_ids ? d.document_ids.length : 0}
+            `;
+                this.showTooltip(event, content);
+            },
+
+            showTooltip: function (event, content) {
+                this.tooltip.transition()
+                    .duration(200)
+                    .style("opacity", 0.9);
+
+                this.tooltip.html(content)
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 28) + "px");
+            },
+
+            hideTooltip: function () {
+                this.tooltip.transition()
+                    .duration(500)
+                    .style("opacity", 0);
+            },
+
+            selectNode: function (d) {
+                console.log('Selected node:', d);
+                this.emit('nodeSelected', d);
+            },
+
+            // Drag handlers
+            dragstarted: function (event, d) {
+                if (!event.active) this.simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            },
+
+            dragged: function (event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            },
+
+            dragended: function (event, d) {
+                if (!event.active) this.simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            },
+
+            // Event emission
+            emit: function (eventName, data) {
+                const event = new CustomEvent('graph:' + eventName, { detail: data });
+                document.dispatchEvent(event);
+            }
+        };
+
+        // Auto-initialize when component is loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => graphCanvas.init());
+        } else {
+            graphCanvas.init();
+        }
+
+        // Make globally available
+        window.GraphCanvas = graphCanvas;
+    })();
+</script>

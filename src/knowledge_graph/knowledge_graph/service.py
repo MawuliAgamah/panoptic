@@ -55,8 +55,17 @@ class KnowledgeGraphService:
                     'processing_strategy': 'Document-level' if document.should_use_document_level_kg() else 'Chunk-level',
                     'token_estimate': len(document.clean_content.split()) * 1.3 if document.clean_content else 0,
                     'tags': getattr(document.metadata, 'tags', []) if hasattr(document, 'metadata') and document.metadata else [],
-                    'categories': []
+                    'categories': getattr(document.metadata, 'categories', []) if hasattr(document, 'metadata') and document.metadata else [],
+                    'domains': getattr(document.metadata, 'categories', []) if hasattr(document, 'metadata') and document.metadata else []  # Use categories as domains
                 }
+                
+                # Debug logging
+                logger.info(f"Document metadata for {document.id}:")
+                logger.info(f"  - Has metadata: {hasattr(document, 'metadata') and document.metadata is not None}")
+                if hasattr(document, 'metadata') and document.metadata:
+                    logger.info(f"  - Tags: {getattr(document.metadata, 'tags', [])}")
+                    logger.info(f"  - Categories: {getattr(document.metadata, 'categories', [])}")
+                logger.info(f"  - Final document_metadata: {document_metadata}")
 
                 self.db_client.save_knowledge_graph(document.id, result, document_metadata)
                 logger.info(f"Saved knowledge graph for document {document.id}")

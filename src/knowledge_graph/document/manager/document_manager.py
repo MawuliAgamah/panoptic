@@ -204,8 +204,11 @@ class DocumentManager:
             content = document.raw_content
             
             # Extract topics and keywords from the full document
+            print(f"🔍 Extracting topics and keywords from document {document.id}")
             raw_topics = self.llm_service.extract_topics(content)
             raw_keywords = self.llm_service.extract_keywords(content)
+            print(f"📊 Raw topics: {raw_topics}")
+            print(f"📊 Raw keywords: {raw_keywords}")
             
             # Clean topics - extract from dict and remove any # symbols
             cleaned_topics = []
@@ -221,9 +224,20 @@ class DocumentManager:
             elif isinstance(raw_keywords, list):
                 cleaned_keywords = [k.replace('#', '').strip() for k in raw_keywords]
             
-            # Update document metadata
-            document.metadata.tags = cleaned_topics[:5]  # Use topics as tags
-            document.metadata.categories = cleaned_keywords[:5]  # Use keywords as categories
+            # Update document metadata - preserve existing domain/tags and add LLM-extracted ones
+            # Preserve existing tags (from user input) and add LLM-extracted topics
+            existing_tags = getattr(document.metadata, 'tags', [])
+            print(f"🏷️ Existing tags: {existing_tags}")
+            print(f"🏷️ Cleaned topics: {cleaned_topics[:5]}")
+            document.metadata.tags = list(set(existing_tags + cleaned_topics[:5]))  # Combine and deduplicate
+            print(f"🏷️ Final tags: {document.metadata.tags}")
+            
+            # Preserve existing categories (from user input) and add LLM-extracted keywords
+            existing_categories = getattr(document.metadata, 'categories', [])
+            print(f"📂 Existing categories: {existing_categories}")
+            print(f"📂 Cleaned keywords: {cleaned_keywords[:5]}")
+            document.metadata.categories = list(set(existing_categories + cleaned_keywords[:5]))  # Combine and deduplicate
+            print(f"📂 Final categories: {document.metadata.categories}")
             
             # Calculate word count
             document.metadata.word_count = len(content.split())

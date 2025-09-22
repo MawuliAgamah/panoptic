@@ -13,7 +13,7 @@ import time
 
 from bots import get_telegram_bot
 from knowledge_graph import create_json_client, KnowledgeGraphClient
-from flashcards import create_flashcard_service
+from flashcards import create_flashcard_client
 from web import run_web_server
 import dotenv
 
@@ -248,35 +248,41 @@ async def test_flashcards():
     logger = logging.getLogger(__name__)
 
     try:
-        logger.info("🧪 Testing Flashcard System")
+        logger.info("🧪 Testing Flashcard System (New API)")
         logger.info("=" * 50)
 
-        # 1. Initialize service
-        logger.info("1. Initializing FlashcardService...")
-        service = create_flashcard_service(enable_anki=False)
+        # 1. Initialize client
+        logger.info("1. Initializing FlashcardClient...")
+        client = create_flashcard_client(enable_anki=False)
 
-        # 2. Test service info
-        logger.info("2. Service Info:")
-        info = service.get_service_info()
-        logger.info(f"   Algorithms available: {info['flashcard_service']['algorithms_available']}")
-        logger.info(f"   Anki enabled: {info['flashcard_service']['anki_enabled']}")
+        # 2. Test health check
+        logger.info("2. Health Check:")
+        health = client.health_check()
+        if health.success:
+            logger.info(f"   ✅ System healthy")
+            logger.info(f"   Version: {health.data['version']}")
+            logger.info(f"   Anki: {health.data['services']['anki_integration']}")
+        else:
+            logger.error(f"   ❌ Health check failed: {health.error}")
+            return
 
         # 3. Create a user and deck
         user_id = "test_user_123"
         logger.info(f"3. Creating deck for user {user_id}...")
 
-        deck = service.create_deck(
+        deck_result = client.create_deck(
             user_id=user_id,
             name="Python Basics",
             description="Learning Python fundamentals",
             algorithm="sm2"
         )
 
-        if deck:
-            logger.info(f"   ✅ Created deck: '{deck.name}' (ID: {deck.deck_id})")
-            logger.info(f"   Algorithm: {deck.default_algorithm}")
+        if deck_result.success:
+            deck_data = deck_result.data
+            logger.info(f"   ✅ Created deck: '{deck_data['name']}' (ID: {deck_data['id'][:8]}...)")
+            logger.info(f"   Algorithm: {deck_data['default_algorithm']}")
         else:
-            logger.error("   ❌ Failed to create deck")
+            logger.error(f"   ❌ Failed to create deck: {deck_result.error}")
             return
 
         # 4. Create some flashcards
@@ -289,75 +295,91 @@ async def test_flashcards():
             ("How do you create a for loop?", "for item in iterable: print(item)")
         ]
 
-        cards = []
+        created_cards = []
         for front, back in cards_data:
-            card = service.create_card(
-                deck_id=deck.deck_id,
+            card_result = client.create_card(
                 user_id=user_id,
                 front=front,
                 back=back,
-                tags=["python", "basics"]
+                domains=["python", "basics"]  # Using domains instead of tags
             )
-            if card:
-                cards.append(card)
+            if card_result.success:
+                created_cards.append(card_result.data)
                 logger.info(f"   ✅ Created card: {front[:30]}...")
+            else:
+                logger.error(f"   ❌ Failed to create card: {card_result.error}")
 
-        logger.info(f"   Created {len(cards)} cards")
+        logger.info(f"   Created {len(created_cards)} cards")
 
         # 5. Check due cards
         logger.info("5. Checking due cards...")
-        due_cards = service.get_due_cards(user_id)
-        logger.info(f"   Cards due for review: {len(due_cards)}")
+        due_cards_result = client.get_due_cards(user_id)
+        if due_cards_result.success:
+            due_cards = due_cards_result.data
+            logger.info(f"   Cards due for review: {len(due_cards)}")
+        else:
+            logger.error(f"   ❌ Failed to get due cards: {due_cards_result.error}")
+            due_cards = []
 
         # 6. Review a card
         logger.info("6. Reviewing cards...")
         if due_cards:
             card_to_review = due_cards[0]
-            logger.info(f"   Reviewing: {card_to_review.front}")
-            logger.info(f"   Algorithm: {card_to_review.scheduling.algorithm_name}")
+            logger.info(f"   Reviewing: {card_to_review['front']}")
+            logger.info(f"   Algorithm: {card_to_review.get('algorithm', 'sm2')}")
 
             # Review with quality 4 (good recall)
-            review = service.review_card(card_to_review.card_id, quality=4)
+            review_result = client.review_card(card_to_review['id'], quality=4, user_id=user_id)
 
-            if review:
+            if review_result.success:
                 logger.info(f"   ✅ Review completed!")
-                updated_card = service.get_card(card_to_review.card_id)
-                logger.info(f"   Next review: {updated_card.scheduling.next_review_date}")
-                logger.info(f"   Ease factor: {updated_card.scheduling.ease_factor:.2f}")
-                logger.info(f"   Interval: {updated_card.scheduling.interval_days} days")
-
-        # 7. Test algorithm switching
-        logger.info("7. Testing algorithm switching...")
-        if cards:
-            test_card = cards[1]
-            logger.info(f"   Current algorithm: {test_card.scheduling.algorithm_name}")
-
-            success = service.switch_card_algorithm(test_card.card_id, "sm15")
-            if success:
-                updated_card = service.get_card(test_card.card_id)
-                logger.info(f"   ✅ Switched to: {updated_card.scheduling.algorithm_name}")
+                review_data = review_result.data
+                logger.info(f"   Next review: {review_data['next_review_date']}")
+                
+                # Get updated card info
+                updated_card_result = client.get_card(card_to_review['id'])
+                if updated_card_result.success:
+                    updated_card = updated_card_result.data
+                    logger.info(f"   Ease factor: {updated_card['scheduling']['ease_factor']:.2f}")
+                    logger.info(f"   Interval: {updated_card['scheduling']['interval_days']} days")
             else:
-                logger.error("   ❌ Failed to switch algorithm")
+                logger.error(f"   ❌ Review failed: {review_result.error}")
+
+        # 7. Start a study session
+        logger.info("7. Starting study session...")
+        session_result = client.start_study_session(user_id, max_cards=3)
+        if session_result.success:
+            session_data = session_result.data
+            logger.info(f"   ✅ Session started with {len(session_data['cards'])} cards")
+            logger.info(f"   Session ID: {session_data['session_id']}")
+        else:
+            logger.error(f"   ❌ Failed to start session: {session_result.error}")
 
         # 8. Get statistics
         logger.info("8. User Statistics:")
-        stats = service.get_user_stats(user_id)
-        logger.info(f"   Total cards: {stats['total_cards']}")
-        logger.info(f"   Cards due: {stats['cards_due']}")
-        logger.info(f"   Total reviews: {stats['total_reviews']}")
-        logger.info(f"   Algorithm breakdown: {stats['algorithm_breakdown']}")
+        stats_result = client.get_user_stats(user_id)
+        if stats_result.success:
+            stats = stats_result.data
+            logger.info(f"   Total cards: {stats['total_cards']}")
+            logger.info(f"   Cards due: {stats['cards_due']}")
+            logger.info(f"   Reviewed today: {stats['cards_reviewed_today']}")
+            logger.info(f"   Average ease factor: {stats['average_ease_factor']:.2f}")
+        else:
+            logger.error(f"   ❌ Failed to get stats: {stats_result.error}")
 
-        # 9. Test different algorithms
-        logger.info("9. Available algorithms:")
-        algorithms = service.get_available_algorithms()
-        for algo_name, algo_info in algorithms.items():
-            logger.info(f"   {algo_name}: {algo_info['description']}")
+        # 9. Get user decks
+        logger.info("9. User Decks:")
+        decks_result = client.get_user_decks(user_id)
+        if decks_result.success:
+            decks = decks_result.data
+            for deck in decks:
+                logger.info(f"   📚 {deck['name']} (Algorithm: {deck['default_algorithm']})")
+        else:
+            logger.error(f"   ❌ Failed to get decks: {decks_result.error}")
 
         logger.info("=" * 50)
         logger.info("🎉 Flashcard system test completed!")
         logger.info("Check the database/ folder for created JSON files")
-
-        service.close()
 
     except Exception as e:
         logger.error(f"Flashcard test error: {e}")
@@ -374,7 +396,7 @@ class UnifiedApplication:
 
     async def run_all_services(self, host: str = "127.0.0.1", port: int = 8001):
         """Run web server, telegram bot, and all backend services"""
-        self.logger.info("🚀 Starting Unified AI Module Application")
+        self.logger.info("Starting Unified AI Module Application")
         self.logger.info("=" * 60)
 
         # Load environment variables
@@ -387,46 +409,46 @@ class UnifiedApplication:
             tasks = []
 
             # 1. Web server task
-            self.logger.info(f"📱 Starting Web Server at http://{host}:{port}")
+            self.logger.info(f"Starting Web Server at http://{host}:{port}")
             web_task = asyncio.create_task(run_web_server(host, port))
             tasks.append(("web_server", web_task))
 
             # 2. Telegram bot task (if configured)
             if os.getenv("TELEGRAM_BOT_TOKEN"):
-                self.logger.info("🤖 Starting Telegram Bot")
+                self.logger.info("Starting Telegram Bot")
                 telegram_task = asyncio.create_task(self.run_telegram_bot_service())
                 tasks.append(("telegram_bot", telegram_task))
             else:
-                self.logger.warning("🤖 Telegram bot not configured (missing TELEGRAM_BOT_TOKEN)")
+                self.logger.warning("Telegram bot not configured (missing TELEGRAM_BOT_TOKEN)")
 
             self.tasks = tasks
 
             # Print startup info
-            self.logger.info("✅ All services starting...")
+            self.logger.info("All services starting...")
             self.logger.info("=" * 60)
-            self.logger.info("🌐 ACCESS POINTS:")
+            self.logger.info("ACCESS POINTS:")
             self.logger.info(f"   • Web Interface: http://{host}:{port}")
             self.logger.info(f"   • API Documentation: http://{host}:{port}/docs")
             self.logger.info(f"   • Knowledge Graph Data: http://{host}:{port}/database/knowledge_store.json")
             if os.getenv("TELEGRAM_BOT_TOKEN"):
                 self.logger.info(f"   • Telegram Bot: Active (check your Telegram app)")
             self.logger.info("=" * 60)
-            self.logger.info("📤 UPLOAD DOCUMENTS:")
+            self.logger.info("UPLOAD DOCUMENTS:")
             self.logger.info("   • Visit the web interface and click 'Upload Document'")
             self.logger.info("   • Add tags, select domain, and enable flashcard generation")
             self.logger.info("   • Documents will be processed and added to the knowledge graph")
             self.logger.info("=" * 60)
-            self.logger.info("⚡ READY FOR USE!")
+            self.logger.info("READY FOR USE!")
             self.logger.info("Press Ctrl+C to stop all services")
 
             # Wait for all tasks to complete (or until interrupted)
             await asyncio.gather(*[task for _, task in tasks], return_exceptions=True)
 
         except KeyboardInterrupt:
-            self.logger.info("🛑 Received interrupt signal, stopping services...")
+            self.logger.info("Received interrupt signal, stopping services...")
             await self.shutdown()
         except Exception as e:
-            self.logger.error(f"❌ Application error: {e}")
+            self.logger.error(f"Application error: {e}")
             await self.shutdown()
             raise
 
@@ -463,6 +485,24 @@ async def run_unified_application(host: str = "127.0.0.1", port: int = 8001):
     """Run the unified application with all services"""
     app = UnifiedApplication()
     await app.run_all_services(host, port)
+
+
+def print_usage():
+    """Print usage information for the main application."""
+    print("\nKnowledge Graph AI Module - Usage")
+    print("=" * 50)
+    print("Commands:")
+    print("  python src/main.py                         # Run full application (default)")
+    print("  python src/main.py app [port] [host]       # Run full application with custom port/host")
+    print("  python src/main.py telegram                # Run only telegram bot")
+    print("  python src/main.py process <document_path> # Process a document")
+    print("  python src/main.py query <search_terms>    # Query knowledge store")
+    print("  python src/main.py clear_kg_store          # Clear knowledge store")
+    print("  python src/main.py test_flashcards         # Test flashcard system")
+    print("\nOr from project root:")
+    print("  uv run main.py                             # Run with uv (recommended)")
+    print("\nWeb Interface will be available at: http://127.0.0.1:8001")
+    print("=" * 50)
 
 
 async def main():
@@ -516,70 +556,6 @@ async def main():
         # Default to unified application if no command provided
         await run_unified_application()
 
-
-def print_usage():
-    """Print usage information."""
-    print("🚀 AI Module - Knowledge Graph & Flashcard System")
-    print("=" * 60)
-    print("MAIN COMMANDS:")
-    print("  python src/main.py                             # Run full application (default)")
-    print("  python src/main.py application [port] [host]   # Run full application with custom settings")
-    print("  uv run src/main.py                             # Run full application with uv")
-    print("")
-    print("INDIVIDUAL SERVICES:")
-    print("  python src/main.py telegram                    # Run Telegram bot only")
-    print("  python src/main.py process <document_path>     # Process single document")
-    print("  python src/main.py query <search_terms>       # Query knowledge store")
-    print("  python src/main.py test_flashcards             # Test flashcard system")
-    print("  python src/main.py clear_kg_store              # Clear all data")
-    print("")
-    print("🌟 RECOMMENDED USAGE:")
-    print("  uv run main.py                                 # Starts everything you need!")
-    print("")
-    print("This will start:")
-    print("  📱 Web Interface (http://127.0.0.1:8001)")
-    print("  🤖 Telegram Bot (if TELEGRAM_BOT_TOKEN set)")
-    print("  📊 Knowledge Graph Backend")
-    print("  🗃️  Flashcard System")
-    print("  📤 Document Upload & Processing")
-    print("")
-    print("Examples:")
-    print('  uv run main.py                                 # Full app on default port 8001')
-    print('  python src/main.py application 8080            # Full app on port 8080')
-    print('  python src/main.py process "/path/to/doc.md"   # Process single document')
-    print('  python src/main.py query "machine learning"    # Search knowledge graph')
-    print("")
-    print("🔧 ENVIRONMENT SETUP:")
-    print("  export OPENAI_API_KEY=your-api-key    # Use OpenAI GPT models")
-    print("  export KG_LLM_PROVIDER=ollama         # Use local Ollama")
-    print("  export TELEGRAM_BOT_TOKEN=your-token  # Enable Telegram bot")
-    print("")
-    print("📤 WEB INTERFACE FEATURES:")
-    print("  • Upload documents (PDF, TXT, MD, DOCX)")
-    print("  • Add custom tags and domains")
-    print("  • Auto-extract entities with LLM")
-    print("  • Generate flashcards automatically")
-    print("  • Visualize knowledge graph")
-    print("  • Interactive D3.js visualization")
-    print("")
-    print("🤖 TELEGRAM BOT FEATURES:")
-    print("  • Create flashcards on-the-go")
-    print("  • Review due cards with spaced repetition")
-    print("  • Get learning statistics")
-    print("  • Natural conversation interface")
-    print("")
-    print("🎯 GETTING STARTED:")
-    print("  1. Run: uv run main.py")
-    print("  2. Open: http://127.0.0.1:8001")
-    print("  3. Click 'Upload Document' to add your first document")
-    print("  4. Watch the knowledge graph grow!")
-    print("  5. Generate flashcards and start learning")
-    print("")
-    print("💾 STORAGE:")
-    print("  • JSON-based (no database setup required)")
-    print("  • Files stored in database/ folder")
-    print("  • Automatic backup and versioning")
-    print("  • Export/import capabilities")
 
 
 if __name__ == "__main__":

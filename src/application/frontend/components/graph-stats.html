@@ -1,0 +1,129 @@
+<!-- Graph Statistics Component -->
+<div class="stats-component" id="graph-stats">
+    <h3>📊 Graph Statistics</h3>
+    <div class="stats-grid">
+        <div class="stat-item">
+            <div class="stat-value" id="entities-count">0</div>
+            <div class="stat-label">Entities</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="relationships-count">0</div>
+            <div class="stat-label">Relationships</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="documents-count">0</div>
+            <div class="stat-label">Documents</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="visible-count">0</div>
+            <div class="stat-label">Visible</div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .stats-component {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+    }
+
+    .stats-component h3 {
+        margin: 0 0 15px 0;
+        color: #2c3e50;
+        font-size: 18px;
+    }
+
+    .stats-grid {
+        display: flex;
+        gap: 30px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        text-align: center;
+        min-width: 80px;
+    }
+
+    .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #3498db;
+        margin-bottom: 5px;
+    }
+
+    .stat-label {
+        font-size: 12px;
+        color: #7f8c8d;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* Animation for value changes */
+    .stat-value.updating {
+        color: #e74c3c;
+        transform: scale(1.1);
+        transition: all 0.3s ease;
+    }
+</style>
+
+<script>
+    // Graph Stats Component Logic
+    (function () {
+        const statsComponent = {
+            // Update stats with new data
+            update: function (data) {
+                if (!data) return;
+
+                const entities = data.entities ? data.entities.length : 0;
+                const relationships = data.relationships ? data.relationships.length : 0;
+                const documents = data.metadata ? data.metadata.unique_documents : 0;
+                const visible = data.filteredEntities ? data.filteredEntities.length : entities;
+
+                this.animateUpdate('entities-count', entities);
+                this.animateUpdate('relationships-count', relationships);
+                this.animateUpdate('documents-count', documents);
+                this.animateUpdate('visible-count', visible);
+            },
+
+            // Animate number changes
+            animateUpdate: function (elementId, newValue) {
+                const element = document.getElementById(elementId);
+                if (!element) return;
+
+                const oldValue = parseInt(element.textContent) || 0;
+                if (oldValue === newValue) return;
+
+                // Add updating class for visual feedback
+                element.classList.add('updating');
+
+                // Animate the number change
+                const duration = 500;
+                const startTime = performance.now();
+                const difference = newValue - oldValue;
+
+                const animate = (currentTime) => {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+
+                    const currentValue = Math.round(oldValue + (difference * progress));
+                    element.textContent = currentValue;
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        element.classList.remove('updating');
+                    }
+                };
+
+                requestAnimationFrame(animate);
+            }
+        };
+
+        // Make globally available
+        window.GraphStats = statsComponent;
+    })();
+</script>

@@ -1,0 +1,638 @@
+<!-- File Upload Component -->
+<div class="file-upload-component" id="file-upload">
+    <div class="upload-header">
+        <h3>📤 Upload Document</h3>
+        <button id="show-upload-btn" class="upload-btn">
+            Upload New Document
+        </button>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="upload-modal" class="upload-modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4>📤 Upload Document to Knowledge Graph</h4>
+                <span class="close-btn" id="close-upload">&times;</span>
+            </div>
+
+            <form id="upload-form" class="upload-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="file-input">Select Document:</label>
+                        <input type="file" id="file-input" name="file" accept=".txt,.pdf,.docx,.md" required>
+                        <div class="file-info">Supported: TXT, PDF, DOCX, MD</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="document-title">Document Title:</label>
+                        <input type="text" id="document-title" name="title" placeholder="Enter document title" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="document-type">Document Type:</label>
+                        <select id="document-type" name="type" required>
+                            <option value="">Select type...</option>
+                            <option value="research">Research Paper</option>
+                            <option value="article">Article</option>
+                            <option value="book">Book/Chapter</option>
+                            <option value="manual">Manual/Guide</option>
+                            <option value="notes">Notes</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="document-domain">Domain:</label>
+                        <select id="document-domain" name="domain" required>
+                            <option value="">Select domain...</option>
+                            <option value="technology">Technology</option>
+                            <option value="science">Science</option>
+                            <option value="business">Business</option>
+                            <option value="education">Education</option>
+                            <option value="health">Health</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="custom-domain-group" style="display: none;">
+                        <label for="custom-domain">Custom Domain:</label>
+                        <input type="text" id="custom-domain" name="custom_domain" placeholder="Enter custom domain">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="document-description">Description (Optional):</label>
+                    <textarea id="document-description" name="description"
+                        placeholder="Brief description of the document" rows="3"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="tag-input">Tags:</label>
+                    <input type="text" id="tag-input" placeholder="Press Enter to add tags">
+                    <div id="tag-display" class="tag-display"></div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="auto-extract" name="auto_extract" checked>
+                            <span class="checkmark"></span>
+                            Auto-extract entities and relationships
+                        </label>
+                    </div>
+
+                    <div class="form-group checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="generate-flashcards" name="generate_flashcards">
+                            <span class="checkmark"></span>
+                            Generate flashcards
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" id="cancel-upload" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" id="submit-upload" class="btn btn-primary">
+                        <span class="upload-text">Upload Document</span>
+                        <span class="upload-spinner" style="display: none;">⟳ Processing...</span>
+                    </button>
+                </div>
+            </form>
+
+            <div id="upload-results" class="upload-results" style="display: none;"></div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .file-upload-component {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+    }
+
+    .upload-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .upload-header h3 {
+        margin: 0;
+        color: #2c3e50;
+        font-size: 18px;
+    }
+
+    .upload-btn {
+        padding: 8px 16px;
+        background: #27ae60;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background-color 0.3s ease;
+    }
+
+    .upload-btn:hover {
+        background: #219a52;
+    }
+
+    /* Modal Styles */
+    .upload-modal {
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .modal-content {
+        background: white;
+        padding: 0;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 600px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .modal-header h4 {
+        margin: 0;
+        color: #2c3e50;
+    }
+
+    .close-btn {
+        font-size: 24px;
+        cursor: pointer;
+        color: #999;
+        transition: color 0.3s ease;
+    }
+
+    .close-btn:hover {
+        color: #666;
+    }
+
+    .upload-form {
+        padding: 20px;
+    }
+
+    .form-row {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 15px;
+    }
+
+    .form-group {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .form-group label {
+        margin-bottom: 5px;
+        font-weight: 600;
+        color: #2c3e50;
+        font-size: 14px;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+        transition: border-color 0.3s ease;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #3498db;
+    }
+
+    .file-info {
+        font-size: 12px;
+        color: #666;
+        margin-top: 4px;
+    }
+
+    .checkbox-group {
+        flex-direction: row;
+        align-items: center;
+    }
+
+    .checkbox-label {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+        margin-right: 8px;
+    }
+
+    /* Tag Display */
+    .tag-display {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 8px;
+    }
+
+    .tag {
+        background: #ecf0f1;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        color: #2c3e50;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .remove-tag {
+        cursor: pointer;
+        color: #e74c3c;
+        font-weight: bold;
+    }
+
+    .remove-tag:hover {
+        color: #c0392b;
+    }
+
+    /* Form Actions */
+    .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background-color 0.3s ease;
+    }
+
+    .btn-primary {
+        background: #3498db;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #2980b9;
+    }
+
+    .btn-secondary {
+        background: #95a5a6;
+        color: white;
+    }
+
+    .btn-secondary:hover {
+        background: #7f8c8d;
+    }
+
+    .upload-spinner {
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Upload Results */
+    .upload-results {
+        margin-top: 20px;
+        padding: 15px;
+        border-radius: 6px;
+        border: 1px solid #ddd;
+    }
+
+    .upload-results.success {
+        background: #d4edda;
+        border-color: #c3e6cb;
+        color: #155724;
+    }
+
+    .upload-results.error {
+        background: #f8d7da;
+        border-color: #f5c6cb;
+        color: #721c24;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+        .form-row {
+            flex-direction: column;
+        }
+
+        .modal-content {
+            width: 95%;
+            margin: 10px;
+        }
+    }
+</style>
+
+<script>
+    // File Upload Component Logic
+    (function () {
+        const fileUpload = {
+            userTags: [],
+
+            init: function () {
+                this.bindEvents();
+                console.log('📤 File upload component initialized');
+            },
+
+            bindEvents: function () {
+                // Show upload modal
+                const showBtn = document.getElementById('show-upload-btn');
+                if (showBtn) {
+                    showBtn.addEventListener('click', () => this.showModal());
+                }
+
+                // Close modal
+                const closeBtn = document.getElementById('close-upload');
+                const cancelBtn = document.getElementById('cancel-upload');
+                if (closeBtn) closeBtn.addEventListener('click', () => this.hideModal());
+                if (cancelBtn) cancelBtn.addEventListener('click', () => this.hideModal());
+
+                // File input change
+                const fileInput = document.getElementById('file-input');
+                const titleInput = document.getElementById('document-title');
+                if (fileInput && titleInput) {
+                    fileInput.addEventListener('change', (e) => {
+                        if (e.target.files.length > 0) {
+                            const filename = e.target.files[0].name;
+                            const titleFromFile = filename.split('.').slice(0, -1).join('.')
+                                .replace(/[-_]/g, ' ')
+                                .replace(/\b\w/g, l => l.toUpperCase());
+                            titleInput.value = titleFromFile;
+                        }
+                    });
+                }
+
+                // Domain selection
+                const domainSelect = document.getElementById('document-domain');
+                const customDomainGroup = document.getElementById('custom-domain-group');
+                if (domainSelect && customDomainGroup) {
+                    domainSelect.addEventListener('change', (e) => {
+                        if (e.target.value === 'other') {
+                            customDomainGroup.style.display = 'block';
+                        } else {
+                            customDomainGroup.style.display = 'none';
+                            document.getElementById('custom-domain').value = '';
+                        }
+                    });
+                }
+
+                // Tag input
+                this.setupTagInput();
+
+                // Form submission
+                const form = document.getElementById('upload-form');
+                if (form) {
+                    form.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        this.handleSubmit();
+                    });
+                }
+
+                // Modal click outside to close
+                const modal = document.getElementById('upload-modal');
+                if (modal) {
+                    modal.addEventListener('click', (e) => {
+                        if (e.target === modal) {
+                            this.hideModal();
+                        }
+                    });
+                }
+            },
+
+            setupTagInput: function () {
+                const tagInput = document.getElementById('tag-input');
+                if (!tagInput) return;
+
+                tagInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const tag = e.target.value.trim().toLowerCase();
+
+                        if (tag && !this.userTags.includes(tag)) {
+                            this.userTags.push(tag);
+                            this.updateTagDisplay();
+                            e.target.value = '';
+                        }
+                    }
+                });
+            },
+
+            updateTagDisplay: function () {
+                const tagDisplay = document.getElementById('tag-display');
+                if (!tagDisplay) return;
+
+                tagDisplay.innerHTML = '';
+
+                this.userTags.forEach((tag, index) => {
+                    const tagElement = document.createElement('div');
+                    tagElement.className = 'tag';
+                    tagElement.innerHTML = `
+                    ${tag}
+                    <span class="remove-tag" data-index="${index}">&times;</span>
+                `;
+
+                    // Add click handler for remove
+                    const removeBtn = tagElement.querySelector('.remove-tag');
+                    removeBtn.addEventListener('click', () => this.removeTag(index));
+
+                    tagDisplay.appendChild(tagElement);
+                });
+            },
+
+            removeTag: function (index) {
+                this.userTags.splice(index, 1);
+                this.updateTagDisplay();
+            },
+
+            showModal: function () {
+                const modal = document.getElementById('upload-modal');
+                if (modal) {
+                    modal.style.display = 'flex';
+                    this.resetForm();
+                }
+            },
+
+            hideModal: function () {
+                const modal = document.getElementById('upload-modal');
+                if (modal) {
+                    modal.style.display = 'none';
+                    this.resetForm();
+                }
+            },
+
+            resetForm: function () {
+                const form = document.getElementById('upload-form');
+                if (form) {
+                    form.reset();
+                }
+                this.userTags = [];
+                this.updateTagDisplay();
+                this.hideResults();
+                this.resetSubmitButton();
+            },
+
+            async handleSubmit() {
+                const formData = new FormData();
+                const form = document.getElementById('upload-form');
+
+                // Get form data
+                const fileInput = document.getElementById('file-input');
+                const title = document.getElementById('document-title').value;
+                const type = document.getElementById('document-type').value;
+                const domain = document.getElementById('document-domain').value === 'other'
+                    ? document.getElementById('custom-domain').value
+                    : document.getElementById('document-domain').value;
+                const description = document.getElementById('document-description').value;
+                const autoExtract = document.getElementById('auto-extract').checked;
+                const generateFlashcards = document.getElementById('generate-flashcards').checked;
+
+                // Validate
+                if (!fileInput.files[0] || !title || !type || !domain) {
+                    this.showResults('Please fill in all required fields.', 'error');
+                    return;
+                }
+
+                // Prepare form data
+                formData.append('file', fileInput.files[0]);
+                formData.append('title', title);
+                formData.append('type', type);
+                formData.append('domain', domain);
+                formData.append('description', description);
+                formData.append('tags', JSON.stringify(this.userTags));
+                formData.append('auto_extract', autoExtract);
+                formData.append('generate_flashcards', generateFlashcards);
+
+                this.setSubmitLoading(true);
+
+                try {
+                    const response = await fetch('/api/upload-document', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                        this.showResults(`
+                        <h4>✅ Upload Successful!</h4>
+                        <p><strong>Document:</strong> ${result.document_title}</p>
+                        <p><strong>Entities extracted:</strong> ${result.entities_extracted}</p>
+                        <p><strong>Relationships created:</strong> ${result.relationships_created}</p>
+                        <p><strong>Flashcards generated:</strong> ${result.flashcards_created}</p>
+                    `, 'success');
+
+                        // Emit event to refresh graph
+                        this.emit('documentUploaded', result);
+
+                        // Auto-close modal after delay
+                        setTimeout(() => {
+                            this.hideModal();
+                        }, 3000);
+
+                    } else {
+                        this.showResults(`Upload failed: ${result.detail || 'Unknown error'}`, 'error');
+                    }
+
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    this.showResults(`Upload failed: ${error.message}`, 'error');
+                }
+
+                this.setSubmitLoading(false);
+            },
+
+            setSubmitLoading: function (loading) {
+                const submitBtn = document.getElementById('submit-upload');
+                const uploadText = submitBtn.querySelector('.upload-text');
+                const uploadSpinner = submitBtn.querySelector('.upload-spinner');
+
+                if (loading) {
+                    submitBtn.disabled = true;
+                    uploadText.style.display = 'none';
+                    uploadSpinner.style.display = 'inline';
+                } else {
+                    submitBtn.disabled = false;
+                    uploadText.style.display = 'inline';
+                    uploadSpinner.style.display = 'none';
+                }
+            },
+
+            showResults: function (message, type) {
+                const resultsDiv = document.getElementById('upload-results');
+                if (resultsDiv) {
+                    resultsDiv.innerHTML = message;
+                    resultsDiv.className = `upload-results ${type}`;
+                    resultsDiv.style.display = 'block';
+                }
+            },
+
+            hideResults: function () {
+                const resultsDiv = document.getElementById('upload-results');
+                if (resultsDiv) {
+                    resultsDiv.style.display = 'none';
+                }
+            },
+
+            emit: function (eventName, data) {
+                const event = new CustomEvent('graph:' + eventName, { detail: data });
+                document.dispatchEvent(event);
+                console.log('📤 Upload:', eventName, data);
+            }
+        };
+
+        // Auto-initialize when component is loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => fileUpload.init());
+        } else {
+            fileUpload.init();
+        }
+
+        // Make globally available
+        window.FileUpload = fileUpload;
+    })();
+</script>

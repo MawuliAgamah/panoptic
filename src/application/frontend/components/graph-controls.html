@@ -1,0 +1,399 @@
+<!-- Graph Controls Component -->
+<div class="graph-controls-component">
+    <div class="controls-container">
+        <h3>Controls</h3>
+        
+        <div class="control-group">
+            <label for="layout-strength">Layout Strength:</label>
+            <input type="range" id="layout-strength" min="10" max="1000" value="200" />
+            <span id="strength-value">200</span>
+        </div>
+
+        <div class="control-group">
+            <label for="node-size">Node Size:</label>
+            <input type="range" id="node-size" min="5" max="30" value="15" />
+            <span id="size-value">15</span>
+        </div>
+
+        <div class="control-group">
+            <button id="reset-zoom">Reset Zoom</button>
+            <button id="center-graph">Center Graph</button>
+        </div>
+
+        <div class="control-group danger-zone">
+            <label>Database Management:</label>
+            <button id="clear-database" class="danger-btn">Clear All Data</button>
+            <div style="font-size:11px;color:#e74c3c;margin-top:4px;line-height:1.3;">
+                ⚠️ This will permanently delete all entities and relationships
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Creation Mode:</label>
+            <button id="toggle-creation-mode">Enable</button>
+            <div style="font-size:12px;color:#7f8c8d;margin-top:6px;line-height:1.4;">
+                <strong>Controls:</strong><br>
+                • Right-click canvas: New Field<br>
+                • Ctrl/Cmd+Click Field: Add Topic<br>
+                • Ctrl/Cmd+Click Topic: Add Subtopic<br>
+                • Ctrl/Cmd+Click Subtopic: Add Sub-subtopic<br>
+                • Ctrl/Cmd+Click Extracted: Add Subtopic
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Document Upload Mode:</label>
+            <button id="toggle-upload-mode">Enable</button>
+            <div style="font-size:12px;color:#7f8c8d;margin-top:6px;line-height:1.4;">
+                <strong>Upload Documents:</strong><br>
+                • Click any node to upload a document<br>
+                • Knowledge graph will be extracted<br>
+                • Entities will be attached as children
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .graph-controls-component {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+    }
+
+    .controls-container {
+        padding: 20px;
+    }
+
+    .controls-container h3 {
+        margin: 0 0 20px 0;
+        color: #2c3e50;
+        font-size: 18px;
+        border-bottom: 2px solid #3498db;
+        padding-bottom: 10px;
+    }
+
+    .control-group {
+        margin-bottom: 15px;
+        padding: 10px;
+        border-radius: 6px;
+        background: #f8f9fa;
+    }
+
+    .control-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: #2c3e50;
+        font-size: 13px;
+    }
+
+    .control-group input[type="range"] {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+
+    .control-group span {
+        font-size: 12px;
+        color: #7f8c8d;
+        margin-left: 5px;
+    }
+
+    .control-group button {
+        background: #3498db;
+        color: white;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-right: 5px;
+        font-size: 12px;
+    }
+
+    .control-group button:hover {
+        background: #2980b9;
+    }
+
+    .danger-zone {
+        border-top: 2px solid #e74c3c;
+        padding-top: 12px;
+        margin-top: 16px;
+    }
+
+    .danger-btn {
+        background: #e74c3c !important;
+        color: white !important;
+        border: 1px solid #c0392b !important;
+    }
+
+    .danger-btn:hover {
+        background: #c0392b !important;
+        transform: none;
+    }
+</style>
+
+<script>
+    (function () {
+        const graphControls = {
+            init: function () {
+                console.log('🧩 GraphControls script loaded, initializing...');
+                this.setupEventListeners();
+                console.log('🎛️ Graph controls initialized');
+            },
+
+            setupEventListeners: function () {
+                // Layout strength control
+                const strengthSlider = document.getElementById('layout-strength');
+                const strengthValue = document.getElementById('strength-value');
+
+                if (strengthSlider && strengthValue) {
+                    strengthSlider.addEventListener('input', (e) => {
+                        const value = parseInt(e.target.value);
+                        strengthValue.textContent = value;
+                        this.emit('layoutStrengthChanged', value);
+                    });
+                }
+
+                // Node size control
+                const sizeSlider = document.getElementById('node-size');
+                const sizeValue = document.getElementById('size-value');
+
+                if (sizeSlider && sizeValue) {
+                    sizeSlider.addEventListener('input', (e) => {
+                        const value = parseInt(e.target.value);
+                        sizeValue.textContent = value;
+                        this.emit('nodeSizeChanged', value);
+                    });
+                }
+
+                // Reset zoom button
+                const resetZoomBtn = document.getElementById('reset-zoom');
+                if (resetZoomBtn) {
+                    resetZoomBtn.addEventListener('click', () => {
+                        this.emit('resetZoom');
+                    });
+                }
+
+                // Center graph button
+                const centerGraphBtn = document.getElementById('center-graph');
+                if (centerGraphBtn) {
+                    centerGraphBtn.addEventListener('click', () => {
+                        this.emit('centerGraph');
+                    });
+                }
+
+                // Clear database button (with confirmation) - FIXED VERSION
+                const self = this; // Capture correct scope
+                const bindClearButton = () => {
+                    const btn = document.getElementById('clear-database');
+                    if (!btn) {
+                        console.log('🗑️ Clear button not found, will retry...');
+                        return false;
+                    }
+                    
+                    console.log('🗑️ Clear button found, attaching listener...');
+                    btn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        console.log('🗑️ Clear button clicked!');
+                        self.showClearConfirmation();
+                    });
+                    return true;
+                };
+
+                // Try immediate bind; if not found, retry
+                if (!bindClearButton()) {
+                    setTimeout(bindClearButton, 100);
+                    setTimeout(bindClearButton, 300);
+                }
+
+                // Ultimate fallback - delegated listener
+                document.addEventListener('click', function(e) {
+                    if (e.target && e.target.id === 'clear-database') {
+                        console.log('🗑️ Clear button clicked (delegated)');
+                        e.preventDefault();
+                        self.showClearConfirmation();
+                    }
+                });
+
+                // Creation mode toggle
+                let enabled = false;
+                const bindCreationToggle = () => {
+                    const btn = document.getElementById('toggle-creation-mode');
+                    if (!btn) return false;
+                    btn.addEventListener('click', () => {
+                        enabled = !enabled;
+                        btn.textContent = enabled ? 'Disable' : 'Enable';
+                        console.log('🟢 Creation mode toggled:', enabled);
+                        this.emit('creationModeChanged', enabled);
+                    }, { once: false });
+                    return true;
+                };
+
+                // Try immediate bind; if not found, retry shortly (dynamic load timing safety)
+                if (!bindCreationToggle()) {
+                    setTimeout(bindCreationToggle, 100);
+                    setTimeout(bindCreationToggle, 300);
+                }
+
+                // Document upload mode toggle
+                let uploadEnabled = false;
+                const bindUploadToggle = () => {
+                    const btn = document.getElementById('toggle-upload-mode');
+                    if (!btn) return false;
+                    btn.addEventListener('click', () => {
+                        uploadEnabled = !uploadEnabled;
+                        btn.textContent = uploadEnabled ? 'Disable' : 'Enable';
+                        console.log('📄 Upload mode toggled:', uploadEnabled);
+                        this.emit('uploadModeChanged', uploadEnabled);
+                        
+                        // Disable creation mode when upload mode is enabled
+                        if (uploadEnabled && enabled) {
+                            enabled = false;
+                            const creationBtn = document.getElementById('toggle-creation-mode');
+                            if (creationBtn) {
+                                creationBtn.textContent = 'Enable';
+                                this.emit('creationModeChanged', false);
+                            }
+                        }
+                    }, { once: false });
+                    return true;
+                };
+
+                // Try immediate bind; if not found, retry shortly
+                if (!bindUploadToggle()) {
+                    setTimeout(bindUploadToggle, 100);
+                    setTimeout(bindUploadToggle, 300);
+                }
+
+                // As an ultimate fallback, delegate on document
+                document.addEventListener('click', (e) => {
+                    if ((e.target && e.target.id === 'toggle-creation-mode')) {
+                        enabled = !enabled;
+                        e.target.textContent = enabled ? 'Disable' : 'Enable';
+                        console.log('🟢 Creation mode toggled (delegated):', enabled);
+                        this.emit('creationModeChanged', enabled);
+                        
+                        // Disable upload mode when creation mode is enabled
+                        if (enabled && uploadEnabled) {
+                            uploadEnabled = false;
+                            const uploadBtn = document.getElementById('toggle-upload-mode');
+                            if (uploadBtn) {
+                                uploadBtn.textContent = 'Enable';
+                                this.emit('uploadModeChanged', false);
+                            }
+                        }
+                    } else if ((e.target && e.target.id === 'toggle-upload-mode')) {
+                        uploadEnabled = !uploadEnabled;
+                        e.target.textContent = uploadEnabled ? 'Disable' : 'Enable';
+                        console.log('📄 Upload mode toggled (delegated):', uploadEnabled);
+                        this.emit('uploadModeChanged', uploadEnabled);
+                        
+                        // Disable creation mode when upload mode is enabled
+                        if (uploadEnabled && enabled) {
+                            enabled = false;
+                            const creationBtn = document.getElementById('toggle-creation-mode');
+                            if (creationBtn) {
+                                creationBtn.textContent = 'Enable';
+                                this.emit('creationModeChanged', false);
+                            }
+                        }
+                    }
+                });
+            },
+
+            emit: function (eventName, data) {
+                const event = new CustomEvent('graph:' + eventName, { detail: data });
+                document.dispatchEvent(event);
+            },
+
+            showClearConfirmation: function() {
+                console.log('🗑️ showClearConfirmation called');
+                const confirmed = confirm(
+                    '⚠️ WARNING: This will permanently delete ALL entities and relationships from the knowledge store.\n\n' +
+                    'This action cannot be undone!\n\n' +
+                    'Are you sure you want to continue?'
+                );
+                
+                if (confirmed) {
+                    console.log('🗑️ User confirmed, calling clearDatabase');
+                    this.clearDatabase();
+                } else {
+                    console.log('🗑️ User cancelled clear operation');
+                }
+            },
+
+            clearDatabase: function() {
+                console.log('🗑️ clearDatabase called - starting clear operation...');
+                
+                // Show loading state
+                const clearBtn = document.getElementById('clear-database');
+                if (clearBtn) {
+                    clearBtn.textContent = 'Clearing...';
+                    clearBtn.disabled = true;
+                    console.log('🗑️ Button state updated to clearing...');
+                }
+                
+                fetch('/api/knowledge-store/clear', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => {
+                    console.log('🗑️ Server response received:', response.status, response.statusText);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('✅ Knowledge store cleared:', data);
+                    
+                    if (data.success) {
+                        alert(`✅ Knowledge store cleared successfully!\n\n` +
+                              `Entities cleared: ${data.entities_cleared}\n` +
+                              `Relationships cleared: ${data.relationships_cleared}`);
+                        
+                        // Reload the graph data
+                        if (window.DataLoader && window.DataLoader.loadData) {
+                            console.log('🔄 Reloading graph data...');
+                            window.DataLoader.loadData();
+                        } else {
+                            console.log('⚠️ DataLoader not found, manual refresh may be needed');
+                        }
+                    } else {
+                        alert(`❌ Failed to clear knowledge store: ${data.error || 'Unknown error'}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error clearing knowledge store:', error);
+                    alert('❌ Failed to clear knowledge store. Check console for details.');
+                })
+                .finally(() => {
+                    // Reset button state
+                    if (clearBtn) {
+                        clearBtn.textContent = 'Clear All Data';
+                        clearBtn.disabled = false;
+                        console.log('🗑️ Button state reset to normal');
+                    }
+                });
+            },
+
+            update: function (data) {
+                // Update controls based on data if needed
+                console.log('🎛️ Graph controls updated with data');
+            }
+        };
+
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => graphControls.init());
+        } else {
+            graphControls.init();
+        }
+
+        // Export globally
+        window.GraphControls = graphControls;
+    })();
+</script>
