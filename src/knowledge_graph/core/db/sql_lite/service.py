@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from knowledge_graph.core.db.sql_lite.repository import SqlLiteRepository
+from .repository import SqlLiteRepository
 
 class SQLLiteService:
     """Service for SQLite database operations"""

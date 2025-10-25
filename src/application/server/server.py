@@ -17,6 +17,14 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
+import sys
+from pathlib import Path
+
+# Add the src directory to Python path
+current_dir = Path(__file__).parent  # src/application/server/
+src_dir = current_dir.parent.parent  # src/
+sys.path.insert(0, str(src_dir))
+
 from knowledge_graph import create_json_client
 from flashcards import create_flashcard_client
 from flashcards.models import KG_Mapping

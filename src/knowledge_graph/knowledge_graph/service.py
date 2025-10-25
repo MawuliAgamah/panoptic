@@ -1,4 +1,4 @@
-from knowledge_graph.llm.kg_extractor.service import KGExtractionService
+from ..llm.kg_extractor.service import KGExtractionService
 from typing import Dict, Any, List, Optional
 import logging
 

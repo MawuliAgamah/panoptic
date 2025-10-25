@@ -7,11 +7,11 @@ Script which handles everything related to processing to be embedded.
 
 
 from dataclasses import dataclass
-from knowledge_graph.document.models.metadata import DocumentMetadata
-from knowledge_graph.document.models.document import Document
-from knowledge_graph.document.preprocessing.chunker import Chunker
-from knowledge_graph.document.preprocessing.parser import ParserFactory
-from knowledge_graph.knowledge_graph.service import KnowledgeGraphService
+from ..models.metadata import DocumentMetadata
+from ..models.document import Document
+from ..preprocessing.chunker import Chunker
+from ..preprocessing.parser import ParserFactory
+from ...knowledge_graph.service import KnowledgeGraphService
 
 
 import uuid
@@ -35,7 +35,7 @@ class DocumentManager:
             )
         else:
             # Fallback for backward compatibility
-            from knowledge_graph.llm.kg_extractor.service import KGExtractionService
+            from ...llm.kg_extractor.service import KGExtractionService
             self.kg_service = KGExtractionService(llm_provider="mock")
 
     def make_new_document(self, document_path, document_id):

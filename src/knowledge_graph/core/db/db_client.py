@@ -1,8 +1,8 @@
-from knowledge_graph.document.models.document import Document
-from knowledge_graph.document.models.metadata import DocumentMetadata
-from knowledge_graph.document.models.chunk import TextChunk, ChunkMetadata
-from knowledge_graph.core.db.neo4j.service import Neo4jService
-from knowledge_graph.core.db.json_service import JsonKnowledgeGraphService
+from ...document.models.document import Document
+from ...document.models.metadata import DocumentMetadata
+from ...document.models.chunk import TextChunk, ChunkMetadata
+from  .neo4j.service import Neo4jService
+from .json_service import JsonKnowledgeGraphService
 from datetime import datetime
 import json
 import logging
@@ -44,7 +44,7 @@ class DatabaseClient:
         if cache_db_config:
             cache_type = cache_db_config.get('db_type')
             if cache_type == 'sqlite' or 'db_location' in cache_db_config:
-                from knowledge_graph.core.db.sql_lite.service import SQLLiteService
+                from .sql_lite.service import SQLLiteService
                 sqlite_path = cache_db_config.get('db_location', 'cache.db')
                 self.sqlite_service = SQLLiteService(db_path=sqlite_path)
                 logger.info(f"SQLite service configured at: {sqlite_path}")

@@ -6,10 +6,13 @@ Follows TDD approach with comprehensive test coverage.
 """
 import logging
 import time
+import os
+import tempfile
 from typing import Dict, List, Set, Any, Optional
 from datetime import datetime
 import dspy
-from kg_gen import KGGen
+# from kg_gen import KGGen  # Commented out temporarily
+
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +29,33 @@ class KGExtractionService:
         """
         self.llm_provider = llm_provider
         self.config = kwargs
+        
+        # IMPORTANT: Setup DSPy cache before any DSPy operations
+        self._setup_dspy_cache()
         self._setup_llm()
+
+    def _setup_dspy_cache(self):
+        """Setup DSPy cache directory to avoid permission errors"""
+        try:
+            # Option 1: Use project-local cache
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+            cache_dir = os.path.join(project_root, '.cache', 'dspy')
+            os.makedirs(cache_dir, exist_ok=True)
+            os.environ['DSPY_CACHEDIR_ROOT'] = cache_dir
+            logger.info(f"DSPy cache directory set to: {cache_dir}")
+            
+        except Exception as e:
+            # Option 2: Use user home cache
+            try:
+                home_cache = os.path.join(os.path.expanduser('~'), '.cache', 'dspy')
+                os.makedirs(home_cache, exist_ok=True)
+                os.environ['DSPY_CACHEDIR_ROOT'] = home_cache
+                logger.info(f"Using home cache directory: {home_cache}")
+                
+            except Exception as e2:
+                # Option 3: Disable caching entirely
+                os.environ['DSPY_CACHE_DISABLED'] = '1'
+                logger.warning("Could not create cache directory, disabled DSPy caching")
 
     def _setup_llm(self):
         """Setup LLM based on provider"""
@@ -63,10 +92,11 @@ class KGExtractionService:
                 else:
                     model_string = "openai/gpt-3.5-turbo"  # fallback
 
-                self.kg_gen = KGGen(
-                    model=model_string,
-                    temperature=0.0
-                )
+                # self.kg_gen = KGGen(
+                #     model=model_string,
+                #     temperature=0.0
+                # )
+                self.kg_gen = "mock"  # Using mock instead of kg_gen temporarily
                 self.is_configured = True
             else:
                 self.kg_gen = None
@@ -174,18 +204,24 @@ class KGExtractionService:
             Tuple of (entities_set, relations_list)
         """
         try:
+            # kg-gen functionality commented out temporarily
             # Use clustering based on strategy
-            use_clustering = (strategy == "detailed")
+            # use_clustering = (strategy == "detailed")
 
-            graph_result = self.kg_gen.generate(
-                input_data=text,
-                chunk_size=5000,  # Process text in chunks of 5000 chars
-                cluster=use_clustering  # Cluster similar entities and relations
-            )
+            # graph_result = self.kg_gen.generate(
+            #     input_data=text,
+            #     chunk_size=5000,  # Process text in chunks of 5000 chars
+            #     cluster=use_clustering  # Cluster similar entities and relations
+            # )
 
-            # kg-gen returns a Graph object with .entities and .relations
-            entities = set(graph_result.entities) if hasattr(graph_result, 'entities') else set()
-            relations = list(graph_result.relations) if hasattr(graph_result, 'relations') else []
+            # # kg-gen returns a Graph object with .entities and .relations
+            # entities = set(graph_result.entities) if hasattr(graph_result, 'entities') else set()
+            # relations = list(graph_result.relations) if hasattr(graph_result, 'relations') else []
+
+            # Fallback to mock extraction when kg_gen is not available
+            logger.warning("kg_gen not available, using mock extraction")
+            entities = self._mock_extract_entities(text, strategy)
+            relations = self._mock_extract_relations(text, entities, strategy)
 
             return entities, relations
 

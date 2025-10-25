@@ -1,6 +1,6 @@
-from knowledge_graph.document.preprocessing.parser import _get_parser_for_type
-from knowledge_graph.document.manager.document_manager import DocumentManager
-from knowledge_graph.core.db.sql_lite.service import SQLLiteService
+from .parser import _get_parser_for_type
+from ..manager.document_manager import DocumentManager
+from ...core.db.sql_lite.service import SQLLiteService
 import logging
 
 class DocumentProcessor:

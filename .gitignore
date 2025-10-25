@@ -15,6 +15,7 @@
 # Personal data directories
 data/
 cache/
+.cache/
 logs/
 temp/
 build/

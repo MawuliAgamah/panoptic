@@ -1,8 +1,8 @@
 from typing import Dict, Optional, Union, List, Any
 import logging
 from pathlib import Path
-from knowledge_graph.core.db.db_client import DatabaseClient
-from knowledge_graph.config import (
+from ..core.db.db_client import DatabaseClient
+from ..config import (
     KnowledgeGraphConfig,
     DatabaseConfig,
     LLMConfig,
@@ -158,10 +158,10 @@ class KnowledgeGraphClient:
 
     def _initialize_services(self) -> None:
         """Initialize all required services."""
-        from knowledge_graph.document.service import DocumentService
-        from knowledge_graph.llm.service import LLMService
-        from knowledge_graph.knowledge_graph.service import KnowledgeGraphService
-        from knowledge_graph.llm.kg_extractor.service import KGExtractionService
+        from ..document.service import DocumentService
+        from ..llm.service import LLMService
+        from ..knowledge_graph.service import KnowledgeGraphService
+        from ..llm.kg_extractor.service import KGExtractionService
 
         # Initialize LLM service with new config structure
         llm_config_dict = self.config.llm.__dict__ if self.config.llm else {}
@@ -272,7 +272,7 @@ class KnowledgeGraphClient:
         Returns:
             Dictionary containing extracted entities, relationships, and metadata
         """
-        from knowledge_graph.document.manager.document_manager import DocumentManager
+        from ..document.manager.document_manager import DocumentManager
         
         self.logger.info(f"Extracting knowledge graph JSON from: {document_path}")
         
@@ -711,6 +711,7 @@ if __name__ == "__main__":
     if not api_key:
         raise ValueError("OPENAI_API_KEY environment variable is not set")
 
+    # set up the client 
     client = KnowledgeGraphClient(
         graph_db_config={
             "db_type": "neo4j",
@@ -730,17 +731,9 @@ if __name__ == "__main__":
             "api_key": api_key
         })
 
-    # client.delete_document(document_id="2")
+    document_id = client.add_document(document_path="/Users/mawuliagamah/Downloads/Chapter 1_ Prompt Chaining.pdf", document_id="2", document_type="pdf")
+    client.extract_document_ontology(document_id)
+    
 
-    # client.add_document(
-    #          document_path="./sample_documents/sample.md",
-    #          document_type="markdown",
-    #          document_id="2"
-    #          )
-    
-    #client.get_cached_document(document_id="1234567890")
-    client.extract_document_ontology(document_id="2")
-    
-    # document.display()
-    client.close()
+
 

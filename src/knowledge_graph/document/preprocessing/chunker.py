@@ -1,6 +1,6 @@
 import pstats
 from typing import List, Dict, Optional, Tuple, Any
-from knowledge_graph.document.models.chunk import TextChunk, ChunkMetadata
+from ..models.chunk import TextChunk, ChunkMetadata
 import uuid
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document

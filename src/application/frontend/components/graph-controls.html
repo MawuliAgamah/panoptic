@@ -2,7 +2,7 @@
 <div class="graph-controls-component">
     <div class="controls-container">
         <h3>Controls</h3>
-        
+
         <div class="control-group">
             <label for="layout-strength">Layout Strength:</label>
             <input type="range" id="layout-strength" min="10" max="1000" value="200" />
@@ -191,9 +191,9 @@
                         console.log('🗑️ Clear button not found, will retry...');
                         return false;
                     }
-                    
+
                     console.log('🗑️ Clear button found, attaching listener...');
-                    btn.addEventListener('click', function(e) {
+                    btn.addEventListener('click', function (e) {
                         e.preventDefault();
                         console.log('🗑️ Clear button clicked!');
                         self.showClearConfirmation();
@@ -208,7 +208,7 @@
                 }
 
                 // Ultimate fallback - delegated listener
-                document.addEventListener('click', function(e) {
+                document.addEventListener('click', function (e) {
                     if (e.target && e.target.id === 'clear-database') {
                         console.log('🗑️ Clear button clicked (delegated)');
                         e.preventDefault();
@@ -246,7 +246,7 @@
                         btn.textContent = uploadEnabled ? 'Disable' : 'Enable';
                         console.log('📄 Upload mode toggled:', uploadEnabled);
                         this.emit('uploadModeChanged', uploadEnabled);
-                        
+
                         // Disable creation mode when upload mode is enabled
                         if (uploadEnabled && enabled) {
                             enabled = false;
@@ -273,7 +273,7 @@
                         e.target.textContent = enabled ? 'Disable' : 'Enable';
                         console.log('🟢 Creation mode toggled (delegated):', enabled);
                         this.emit('creationModeChanged', enabled);
-                        
+
                         // Disable upload mode when creation mode is enabled
                         if (enabled && uploadEnabled) {
                             uploadEnabled = false;
@@ -288,7 +288,7 @@
                         e.target.textContent = uploadEnabled ? 'Disable' : 'Enable';
                         console.log('📄 Upload mode toggled (delegated):', uploadEnabled);
                         this.emit('uploadModeChanged', uploadEnabled);
-                        
+
                         // Disable creation mode when upload mode is enabled
                         if (uploadEnabled && enabled) {
                             enabled = false;
@@ -307,14 +307,14 @@
                 document.dispatchEvent(event);
             },
 
-            showClearConfirmation: function() {
+            showClearConfirmation: function () {
                 console.log('🗑️ showClearConfirmation called');
                 const confirmed = confirm(
                     '⚠️ WARNING: This will permanently delete ALL entities and relationships from the knowledge store.\n\n' +
                     'This action cannot be undone!\n\n' +
                     'Are you sure you want to continue?'
                 );
-                
+
                 if (confirmed) {
                     console.log('🗑️ User confirmed, calling clearDatabase');
                     this.clearDatabase();
@@ -323,9 +323,9 @@
                 }
             },
 
-            clearDatabase: function() {
+            clearDatabase: function () {
                 console.log('🗑️ clearDatabase called - starting clear operation...');
-                
+
                 // Show loading state
                 const clearBtn = document.getElementById('clear-database');
                 if (clearBtn) {
@@ -333,51 +333,51 @@
                     clearBtn.disabled = true;
                     console.log('🗑️ Button state updated to clearing...');
                 }
-                
+
                 fetch('/api/knowledge-store/clear', {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json'
                     }
                 })
-                .then(response => {
-                    console.log('🗑️ Server response received:', response.status, response.statusText);
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('✅ Knowledge store cleared:', data);
-                    
-                    if (data.success) {
-                        alert(`✅ Knowledge store cleared successfully!\n\n` +
-                              `Entities cleared: ${data.entities_cleared}\n` +
-                              `Relationships cleared: ${data.relationships_cleared}`);
-                        
-                        // Reload the graph data
-                        if (window.DataLoader && window.DataLoader.loadData) {
-                            console.log('🔄 Reloading graph data...');
-                            window.DataLoader.loadData();
-                        } else {
-                            console.log('⚠️ DataLoader not found, manual refresh may be needed');
+                    .then(response => {
+                        console.log('🗑️ Server response received:', response.status, response.statusText);
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                         }
-                    } else {
-                        alert(`❌ Failed to clear knowledge store: ${data.error || 'Unknown error'}`);
-                    }
-                })
-                .catch(error => {
-                    console.error('❌ Error clearing knowledge store:', error);
-                    alert('❌ Failed to clear knowledge store. Check console for details.');
-                })
-                .finally(() => {
-                    // Reset button state
-                    if (clearBtn) {
-                        clearBtn.textContent = 'Clear All Data';
-                        clearBtn.disabled = false;
-                        console.log('🗑️ Button state reset to normal');
-                    }
-                });
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('✅ Knowledge store cleared:', data);
+
+                        if (data.success) {
+                            alert(`✅ Knowledge store cleared successfully!\n\n` +
+                                `Entities cleared: ${data.entities_cleared}\n` +
+                                `Relationships cleared: ${data.relationships_cleared}`);
+
+                            // Reload the graph data
+                            if (window.DataLoader && window.DataLoader.loadData) {
+                                console.log('🔄 Reloading graph data...');
+                                window.DataLoader.loadData();
+                            } else {
+                                console.log('⚠️ DataLoader not found, manual refresh may be needed');
+                            }
+                        } else {
+                            alert(`❌ Failed to clear knowledge store: ${data.error || 'Unknown error'}`);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('❌ Error clearing knowledge store:', error);
+                        alert('❌ Failed to clear knowledge store. Check console for details.');
+                    })
+                    .finally(() => {
+                        // Reset button state
+                        if (clearBtn) {
+                            clearBtn.textContent = 'Clear All Data';
+                            clearBtn.disabled = false;
+                            console.log('🗑️ Button state reset to normal');
+                        }
+                    });
             },
 
             update: function (data) {

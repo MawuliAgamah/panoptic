@@ -85,7 +85,7 @@ def create_json_client(
 
     # Ensure cache directory exists
     os.makedirs(os.path.dirname(cache_db_path), exist_ok=True)
-
+    
     config = KnowledgeGraphConfig(
         graph_db=DatabaseConfig(
             db_type="json",

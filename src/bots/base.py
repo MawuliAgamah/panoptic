@@ -8,6 +8,13 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 src_dir = os.path.dirname(current_dir)
 sys.path.insert(0, src_dir)
 
+import sys
+from pathlib import Path
+
+# Add the src directory to Python path
+current_dir = Path(__file__).parent.parent  # src/
+sys.path.insert(0, str(current_dir))
+
 from services.knowledge_store import JsonKnowledgeStore
 from knowledge_graph import create_json_client
 from flashcards import create_flashcard_client

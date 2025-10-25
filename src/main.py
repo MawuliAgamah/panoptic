@@ -10,6 +10,39 @@ from typing import Optional
 import signal
 import threading
 import time
+import sys
+from pathlib import Path
+
+# IMPORTANT: Setup DSPy cache before any DSPy imports to avoid permission errors
+def setup_dspy_cache():
+    """Setup DSPy cache directory to avoid permission errors"""
+    try:
+        # Option 1: Use project-local cache
+        project_root = Path(__file__).parent.parent  # Go up from src/ to project root
+        cache_dir = project_root / '.cache' / 'dspy'
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        os.environ['DSPY_CACHEDIR_ROOT'] = str(cache_dir)
+        logging.info(f"DSPy cache directory set to: {cache_dir}")
+        
+    except Exception as e:
+        # Option 2: Use user home cache
+        try:
+            home_cache = Path.home() / '.cache' / 'dspy'
+            home_cache.mkdir(parents=True, exist_ok=True)
+            os.environ['DSPY_CACHEDIR_ROOT'] = str(home_cache)
+            logging.info(f"Using home cache directory: {home_cache}")
+            
+        except Exception as e2:
+            # Option 3: Disable caching entirely
+            os.environ['DSPY_CACHE_DISABLED'] = '1'
+            logging.warning("Could not create cache directory, disabled DSPy caching")
+
+# Setup DSPy cache before any imports
+setup_dspy_cache()
+
+# Add the src directory to Python path
+current_dir = Path(__file__).parent  # src/
+sys.path.insert(0, str(current_dir))
 
 from bots import get_telegram_bot
 from knowledge_graph import create_json_client, KnowledgeGraphClient
