@@ -45,7 +45,7 @@ class DocumentProcessor:
                 
             self._save_document(document)
             return document
-            
+
         except Exception as e:
             self.logger.error(f"Error processing document: {e}")
             return None
@@ -116,4 +116,5 @@ class DocumentProcessor:
             self.logger.error(f"Error saving to database: {e}")
         return document
 
+    
 
