@@ -14,7 +14,8 @@ import { calculateGraphMetrics } from '@/utils/graphMetrics'
 import {
   fetchGraphSnapshot,
   saveGraphSnapshot,
-  triggerExtractionForNode
+  triggerExtractionForNode,
+  deleteDocument as deleteDocumentRequest
 } from '@/services/backend'
 
 const METRICS_BASELINE: GraphMetrics = {
@@ -274,16 +275,34 @@ export const useGraphStore = defineStore('graph', () => {
     errorMessage.value = null
     try {
       const snapshot = await fetchGraphSnapshot()
-      nodes.value = snapshot.nodes
-      edges.value = snapshot.edges
-      documents.value = snapshot.documents
-      recomputeMetrics()
+      applySnapshot(snapshot)
     } catch (error) {
       errorMessage.value = (error as Error).message
       throw error
     } finally {
       isLoading.value = false
     }
+  }
+
+  async function deleteDocument(documentId: string) {
+    isLoading.value = true
+    errorMessage.value = null
+    try {
+      await deleteDocumentRequest(documentId)
+      await loadGraph()
+    } catch (error) {
+      errorMessage.value = (error as Error).message
+      throw error
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  function applySnapshot(snapshot: GraphSnapshot) {
+    nodes.value = snapshot.nodes
+    edges.value = snapshot.edges
+    documents.value = snapshot.documents
+    recomputeMetrics()
   }
 
   async function triggerExtraction(nodeId: string, documentId: string) {
@@ -339,6 +358,8 @@ export const useGraphStore = defineStore('graph', () => {
     unlinkDocumentFromNode,
     saveGraph,
     loadGraph,
+    applySnapshot,
+    deleteDocument,
     triggerExtraction,
     setSelection
   }

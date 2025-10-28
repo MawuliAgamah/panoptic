@@ -86,15 +86,14 @@ def create_json_client(
     # Ensure cache directory exists
     os.makedirs(os.path.dirname(cache_db_path), exist_ok=True)
     
+    sqlite_config = DatabaseConfig(
+        db_type="sqlite",
+        db_location=cache_db_path
+    )
+
     config = KnowledgeGraphConfig(
-        graph_db=DatabaseConfig(
-            db_type="json",
-            data_file=data_file
-        ),
-        cache_db=DatabaseConfig(
-            db_type="sqlite",
-            db_location=cache_db_path
-        ),
+        graph_db=sqlite_config,
+        cache_db=sqlite_config,
         llm=LLMConfig(
             provider="openai",
             api_key=openai_api_key

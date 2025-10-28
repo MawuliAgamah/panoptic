@@ -58,6 +58,13 @@ export interface UploadDocumentResponse {
   success: boolean
   document_id: string
   message?: string
+  graph?: GraphSnapshot
+  entity_count?: number
+  relation_count?: number
+  kg_data?: {
+    entities: string[]
+    relations: string[][]
+  }
   [key: string]: unknown
 }
 
@@ -92,6 +99,21 @@ export async function uploadLocalDocument(
   }
 
   return (await response.json()) as UploadDocumentResponse
+}
+
+export async function deleteDocument(documentId: string): Promise<void> {
+  if (USE_MOCK_API) {
+    await delay(150)
+    return
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/documents/${encodeURIComponent(documentId)}`, {
+    method: 'DELETE'
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete document: ${response.status} ${response.statusText}`)
+  }
 }
 
 export interface RemoteDocumentRegistration {

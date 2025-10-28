@@ -10,12 +10,28 @@ import os
 import tempfile
 from typing import Dict, List, Set, Any, Optional
 from datetime import datetime
+from threading import Lock
 
 from kg_gen import KGGen
 
-
-
 logger = logging.getLogger(__name__)
+
+# Reuse a single KGGen instance across requests to avoid repeated DSPy configuration.
+_kggen_lock: Lock = Lock()
+_kggen_instance: Optional[KGGen] = None
+_kggen_signature: Optional[tuple[str, str]] = None
+
+
+def _get_shared_kggen(model: str, api_key: str) -> KGGen:
+    """Return a process-wide KGGen instance keyed by model and API key."""
+    global _kggen_instance, _kggen_signature
+
+    signature = (model, api_key)
+    with _kggen_lock:
+        if _kggen_instance is None or _kggen_signature != signature:
+            _kggen_instance = KGGen(model=model, api_key=api_key)
+            _kggen_signature = signature
+        return _kggen_instance
 
 class KGExtractionService:
     """Service for extracting knowledge graphs from text and documents"""
@@ -50,11 +66,8 @@ class KGExtractionService:
                 model_name = self.config.get('model', 'gpt-4o-mini')
                 
                 try:
-                    self.kg_gen = KGGen(
-                        model=f"openai/{model_name}",  # Use openai/model format like quickstart
-                        api_key=api_key,
-                        # api_base=self.config.get('base_url'),  # Optional custom URL
-                    )
+                    model_identifier = f"openai/{model_name}"
+                    self.kg_gen = _get_shared_kggen(model_identifier, api_key)
                     self.is_configured = True
                     logger.info(f"KGGen initialized successfully with model: openai/{model_name}")
                     

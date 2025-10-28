@@ -44,6 +44,14 @@ class JsonKnowledgeGraphService:
             logger.error(f"Failed to save knowledge graph for document {document_id}: {e}")
             return False
 
+    def delete_document(self, document_id: str) -> bool:
+        """Remove a document and its KG references from the JSON store."""
+        try:
+            return self.knowledge_store.delete_document(document_id)
+        except Exception as exc:
+            logger.error(f"Failed to delete document {document_id} from JSON store: {exc}")
+            return False
+
     def get_entities(self, document_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get entities from the knowledge store.

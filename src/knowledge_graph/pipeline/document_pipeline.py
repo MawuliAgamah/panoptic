@@ -130,7 +130,7 @@ class DocumentPipeline:
                 logger.debug("Skipping disabled step '%s'", step.name)
                 continue
 
-            logger.debug("Running pipeline step '%s'", step.name)
+            logger.info("→ Running pipeline step '%s'", step.name)
             try:
                 context = step.run(context)
             except DocumentPipelineError:
@@ -140,6 +140,12 @@ class DocumentPipeline:
             except Exception as exc:  # pragma: no cover - defensive guard
                 logger.exception("Unexpected error during step '%s': %s", step.name, exc)
                 raise DocumentPipelineError(f"Step '{step.name}' failed") from exc
+            else:
+                summary = context.results.get(step.name)
+                if summary:
+                    logger.info("✓ Step '%s' summary: %s", step.name, summary)
+                else:
+                    logger.info("✓ Step '%s' completed", step.name)
 
         logger.info(
             "Document pipeline finished for %s with document id %s",

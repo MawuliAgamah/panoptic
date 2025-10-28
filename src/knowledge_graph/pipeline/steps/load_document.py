@@ -89,4 +89,8 @@ class LoadDocumentStep(PipelineStep):
 
         document.metadata = metadata
         context.set_document(document)
+        context.results[self.name] = {
+            "file": params.document_path,
+            "chars_raw": len(document.raw_content or ""),
+        }
         return context

@@ -127,6 +127,9 @@ function handleGlobalClick(event: MouseEvent) {
 
 onMounted(() => {
   window.addEventListener('click', handleGlobalClick)
+  graphStore.loadGraph().catch((error) => {
+    console.error('Failed to load graph snapshot', error)
+  })
 })
 
 onUnmounted(() => {

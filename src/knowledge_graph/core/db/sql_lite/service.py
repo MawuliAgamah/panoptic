@@ -1,5 +1,4 @@
-import os
-from pathlib import Path
+from typing import Optional, Dict, Any
 from .repository import SqlLiteRepository
 
 class SQLLiteService:
@@ -45,5 +44,13 @@ class SQLLiteService:
     def save_document_ontology(self, document_id, ontology):
         """Save full document ontology"""
         return self.repository.save_document_ontology(document_id, ontology)
+
+    def save_knowledge_graph(self, document_id: str, kg_data: Dict[str, Any]) -> bool:
+        """Persist a knowledge graph payload for the document."""
+        return self.repository.save_knowledge_graph(document_id, kg_data)
+
+    def get_graph_snapshot(self, document_id=None):
+        """Return a GraphSnapshot built from SQLite entities and relationships."""
+        return self.repository.get_graph_snapshot(document_id)
 
     

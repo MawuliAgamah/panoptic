@@ -160,9 +160,12 @@ class SqlLiteRepository:
                                 WHERE id = ?
                             """, (prev_id, next_id, chunk_id))
                     
+                    kg_data = getattr(document, "knowledge_graph", {}) or {}
+                    self._write_knowledge_graph(cursor, document_id, kg_data)
+
                     # Commit transaction
                     conn.commit()
-                    console.print("[bold green]✓[/bold green] Document and chunks saved successfully")
+                    console.print(f"[bold green]✓[/bold green] Document, chunks, and KG saved successfully")
                     return True
                     
                 except Exception as e:
@@ -223,11 +226,11 @@ class SqlLiteRepository:
                 
             # Start transaction
             cursor.execute("BEGIN TRANSACTION")
-                
-            # Delete associated chunks first (using ON DELETE CASCADE would make this unnecessary,
-            # but we'll explicitly delete them first to be safe)
+
+            cursor.execute("DELETE FROM relationships WHERE document_id = ?", (document_id,))
+            cursor.execute("DELETE FROM entities WHERE document_id = ?", (document_id,))
             cursor.execute("DELETE FROM chunks WHERE document_id = ?", (document_id,))
-            console.print(f"[yellow]Deleted associated chunks for document {document_id}[/yellow]")
+            console.print(f"[yellow]Deleted KG rows and chunks for document {document_id}[/yellow]")
                 
             # Then delete the document
             cursor.execute("DELETE FROM documents WHERE document_id = ?", (document_id,))
@@ -245,6 +248,97 @@ class SqlLiteRepository:
             return False
         finally:
             # Close connection if it was opened
+            if conn:
+                conn.close()
+
+    def _write_knowledge_graph(self, cursor, document_id: str, kg_data: Dict[str, Any]) -> None:
+        """Persist entities and relationships for a document using an open cursor."""
+        cursor.execute("DELETE FROM relationships WHERE document_id = ?", (document_id,))
+        cursor.execute("DELETE FROM entities WHERE document_id = ?", (document_id,))
+        console.print(f"[yellow]Deleted previous KG entries for document {document_id}[/yellow]")
+
+        entities = kg_data.get("entities") or []
+        relations = kg_data.get("relations") or []
+
+        entity_ids: Dict[str, str] = {}
+        for entity in entities:
+            if isinstance(entity, str):
+                name = entity
+            elif isinstance(entity, dict):
+                name = entity.get("name") or entity.get("label") or str(entity)
+            else:
+                name = str(entity)
+
+            normalized = name.strip()
+            if not normalized:
+                continue
+
+            entity_id = f"{document_id}::{normalized.lower()}"
+            entity_ids[normalized] = entity_id
+
+            entity_values = (
+                entity_id,
+                normalized,
+                "extracted",
+                "general",
+                document_id,
+                None,
+            )
+            cursor.execute(SAVE_ENTITY, entity_values)
+
+        relation_count = 0
+        for relation in relations:
+            if isinstance(relation, dict):
+                source = relation.get("source") or relation.get("subject")
+                predicate = relation.get("relation") or relation.get("predicate")
+                target = relation.get("target") or relation.get("object")
+            elif isinstance(relation, (list, tuple)) and len(relation) >= 3:
+                source, predicate, target = relation[:3]
+            else:
+                continue
+
+            if not predicate:
+                continue
+
+            source_name = str(source).strip()
+            target_name = str(target).strip()
+            if not source_name or not target_name:
+                continue
+
+            source_id = entity_ids.get(source_name) or f"{document_id}::{source_name.lower()}"
+            target_id = entity_ids.get(target_name) or f"{document_id}::{target_name.lower()}"
+            relation_id = f"{document_id}::{relation_count}"
+            relation_count += 1
+
+            relation_values = (
+                relation_id,
+                source_id,
+                target_id,
+                str(predicate).strip(),
+                None,
+                document_id,
+                None,
+            )
+            cursor.execute(SAVE_RELATIONSHIP, relation_values)
+
+    def save_knowledge_graph(self, document_id: str, kg_data: Dict[str, Any]) -> bool:
+        """Public wrapper to persist a document-level knowledge graph payload."""
+        conn = None
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute("BEGIN TRANSACTION")
+            self._write_knowledge_graph(cursor, document_id, kg_data or {})
+            conn.commit()
+            console.print(f"[bold green]✓[/bold green] Knowledge graph saved for document {document_id}")
+            return True
+        except Exception as exc:
+            if conn:
+                conn.rollback()
+            console.print(f"[red]Error saving knowledge graph for {document_id}: {exc}[/red]")
+            return False
+        finally:
             if conn:
                 conn.close()
 
@@ -434,6 +528,101 @@ class SqlLiteRepository:
         except Exception as e:
             console.print(f"[red]Error retrieving ontology: {e}[/red]")
             return {'entities': [], 'relationships': []}
+
+    def get_graph_snapshot(self, document_id: Optional[str] = None) -> Dict[str, Any]:
+        """Build a graph snapshot using SQLite entities/relationships tables."""
+        snapshot = {"nodes": [], "edges": [], "documents": []}
+
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                # Documents
+                if document_id:
+                    cursor.execute(
+                        "SELECT document_id, title, document_type, created_at, updated_at, last_modified FROM documents WHERE document_id = ?",
+                        (document_id,)
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT document_id, title, document_type, created_at, updated_at, last_modified FROM documents"
+                    )
+                documents = []
+                doc_ids = set()
+                for row in cursor.fetchall():
+                    doc = {
+                        "id": row[0],
+                        "title": row[1] or row[0],
+                        "source": "local",
+                        "mimeType": row[2],
+                        "status": "ready",
+                        "description": None,
+                        "author": None,
+                        "externalId": None,
+                        "url": None,
+                        "createdAt": row[3],
+                        "updatedAt": row[4] or row[5],
+                    }
+                    documents.append(doc)
+                    doc_ids.add(row[0])
+                snapshot["documents"] = documents
+
+                params = (document_id,) if document_id else tuple()
+
+                # Entities
+                entity_query = "SELECT entity_id, name, type, category, document_id, chunk_id, created_at FROM entities"
+                if document_id:
+                    entity_query += " WHERE document_id = ?"
+                cursor.execute(entity_query, params)
+                nodes = []
+                for row in cursor.fetchall():
+                    node = {
+                        "id": row[0],
+                        "label": row[1],
+                        "type": row[2] or row[3] or "concept",
+                        "description": row[3],
+                        "provenance": None,
+                        "documents": [row[4]] if row[4] else [],
+                        "triples": [],
+                        "createdAt": row[6],
+                        "updatedAt": row[6],
+                    }
+                    nodes.append(node)
+                    if row[4]:
+                        doc_ids.add(row[4])
+                snapshot["nodes"] = nodes
+
+                # Relationships
+                relationship_query = (
+                    "SELECT relationship_id, source_entity_id, target_entity_id, relation, context, document_id, chunk_id, created_at "
+                    "FROM relationships"
+                )
+                if document_id:
+                    relationship_query += " WHERE document_id = ?"
+                cursor.execute(relationship_query, params)
+                edges = []
+                for row in cursor.fetchall():
+                    edge = {
+                        "id": row[0],
+                        "source": row[1],
+                        "target": row[2],
+                        "predicate": row[3],
+                        "description": row[4],
+                        "confidence": None,
+                        "sourceDocumentId": row[5],
+                        "createdAt": row[7],
+                        "updatedAt": row[7],
+                    }
+                    edges.append(edge)
+                    if row[5]:
+                        doc_ids.add(row[5])
+                snapshot["edges"] = edges
+
+                return snapshot
+
+        except Exception as exc:
+            console.print(f"[red]Error building graph snapshot: {exc}[/red]")
+            return snapshot
 
     def get_chunk_ontology(self, chunk_id: int) -> Dict:
         """Get all entities and relationships for a chunk"""

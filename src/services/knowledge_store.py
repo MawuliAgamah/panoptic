@@ -66,6 +66,38 @@ class JsonKnowledgeStore:
     def get_relationships(self) -> List[Dict[str, Any]]:
         return self.data.get("relationships", [])
 
+    def delete_document(self, document_id: str) -> bool:
+        """Remove all references to a document from entities and relationships."""
+        try:
+            entities = self.data.get("entities", [])
+            cleaned_entities = []
+            for entity in entities:
+                doc_ids = entity.get("document_ids", [])
+                if document_id in doc_ids:
+                    doc_ids = [doc for doc in doc_ids if doc != document_id]
+                    entity["document_ids"] = doc_ids
+                if doc_ids:
+                    cleaned_entities.append(entity)
+            self.data["entities"] = cleaned_entities
+
+            relationships = self.data.get("relationships", [])
+            cleaned_relationships = []
+            for relation in relationships:
+                doc_ids = relation.get("document_ids", [])
+                if document_id in doc_ids:
+                    doc_ids = [doc for doc in doc_ids if doc != document_id]
+                    relation["document_ids"] = doc_ids
+                if doc_ids:
+                    cleaned_relationships.append(relation)
+            self.data["relationships"] = cleaned_relationships
+
+            self._update_metadata()
+            self._save_data()
+            return True
+        except Exception as exc:
+            print(f"Error removing document {document_id} from knowledge store: {exc}")
+            return False
+
     def add_entity(self, name: str, entity_type: str = "general", document_id: str = None, metadata: Dict[str, Any] = None) -> Dict[str, Any]:
         """Add an entity to the knowledge store."""
         if metadata is None:

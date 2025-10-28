@@ -1,16 +1,16 @@
 from ...document.models.document import Document
 from ...document.models.metadata import DocumentMetadata
 from ...document.models.chunk import TextChunk, ChunkMetadata
-from  .neo4j.service import Neo4jService
-from .json_service import JsonKnowledgeGraphService
+from .neo4j.service import Neo4jService
 from datetime import datetime
+from typing import Optional, Dict, Any
 import json
 import logging
 
 logger = logging.getLogger(__name__)
 
 class DatabaseClient:
-    """Multi-database client supporting SQLite (documents/chunks), Neo4j (knowledge graphs), and JSON (knowledge graphs)"""
+    """Multi-database client supporting SQLite (documents/chunks + knowledge graphs) and optionally Neo4j."""
 
     def __init__(self, graph_db_config=None, cache_db_config=None, db_config=None):
         """
@@ -21,10 +21,10 @@ class DatabaseClient:
             cache_db_config: Configuration for document/chunk caching (SQLite)
             db_config: Legacy single config (for backward compatibility)
         """
+        self.graph_db_type = None
         self.sqlite_service = None
         self.neo4j_service = None
         self.json_kg_service = None
-        self.graph_db_type = None
 
         # Handle both new and legacy initialization
         if db_config:
@@ -63,15 +63,9 @@ class DatabaseClient:
                     logger.warning(f"Neo4j service configuration failed: {e}. Knowledge graph features will be unavailable.")
                     self.neo4j_service = None
 
-            elif graph_db_type == 'json':
-                # JSON for knowledge graphs
-                try:
-                    self.json_kg_service = JsonKnowledgeGraphService(graph_db_config)
-                    self.graph_db_type = 'json'
-                    logger.info("JSON knowledge graph service configured")
-                except Exception as e:
-                    logger.warning(f"JSON service configuration failed: {e}. Knowledge graph features will be unavailable.")
-                    self.json_kg_service = None
+            elif graph_db_type == 'sqlite':
+                self.graph_db_type = 'sqlite'
+                logger.info("Using SQLite for knowledge graph storage")
 
         # Ensure we have at least SQLite for caching if not configured
         if not self.sqlite_service:
@@ -81,7 +75,7 @@ class DatabaseClient:
             logger.info("Fallback SQLite service configured")
 
     def _configure_databases_legacy(self, db_config):
-        """Configure SQLite for caching and either Neo4j or JSON for knowledge graphs (legacy method)"""
+        """Configure SQLite for caching and optionally Neo4j for knowledge graphs (legacy method)"""
 
         # Always configure SQLite for document/chunk caching
         if db_config.get('db_type') == 'sqlite' or 'db_location' in db_config:
@@ -103,15 +97,9 @@ class DatabaseClient:
                 logger.warning(f"Neo4j service configuration failed: {e}. Knowledge graph features will be unavailable.")
                 self.neo4j_service = None
 
-        elif graph_db_type == 'json':
-            # JSON for knowledge graphs
-            try:
-                self.json_kg_service = JsonKnowledgeGraphService(db_config)
-                self.graph_db_type = 'json'
-                logger.info("JSON knowledge graph service configured")
-            except Exception as e:
-                logger.warning(f"JSON service configuration failed: {e}. Knowledge graph features will be unavailable.")
-                self.json_kg_service = None
+        elif graph_db_type == 'sqlite':
+            self.graph_db_type = 'sqlite'
+            logger.info("Using SQLite for knowledge graph storage")
         else:
             logger.warning(f"Unknown or unsupported db_type: {graph_db_type}. Knowledge graph features will be unavailable.")
 
@@ -147,6 +135,12 @@ class DatabaseClient:
         if not self.sqlite_service:
             raise ValueError("SQLite service not initialized")
         return self.sqlite_service.get_chunks(document_id)
+
+    def get_graph_snapshot(self, document_id: Optional[str] = None) -> Dict[str, Any]:
+        """Build a graph snapshot from the SQLite knowledge graph tables."""
+        if not self.sqlite_service:
+            raise ValueError("SQLite service not initialized")
+        return self.sqlite_service.get_graph_snapshot(document_id)
 
     def get_document(self, document_id):
         """Get document by ID and return as Document model"""
@@ -273,17 +267,18 @@ class DatabaseClient:
 
     # Knowledge graph operations (Neo4j or JSON)
     def save_knowledge_graph(self, document_id, kg_graph, document_metadata=None):
-        """Save knowledge graph to configured graph database (Neo4j or JSON)"""
+        """Persist a knowledge graph using the configured backend (Neo4j or SQLite)."""
         if self.graph_db_type == 'neo4j' and self.neo4j_service:
             return self.neo4j_service.save_knowledge_graph(document_id, kg_graph)
-        elif self.graph_db_type == 'json' and self.json_kg_service:
-            return self.json_kg_service.save_knowledge_graph(document_id, kg_graph, document_metadata)
-        else:
-            logger.warning(f"No graph database service available. Cannot save knowledge graph for document {document_id}")
-            # Fallback to SQLite for legacy compatibility
-            if self.sqlite_service:
-                return self.sqlite_service.save_entities_and_relationships(document_id, None, kg_graph)
-            return False
+
+        if self.sqlite_service:
+            return self.sqlite_service.save_knowledge_graph(document_id, kg_graph)
+
+        logger.warning(
+            "No graph persistence service configured; skipping KG save for document %s",
+            document_id,
+        )
+        return False
 
     def get_document_entities(self, document_id):
         """Get all entities for a document from Neo4j"""
@@ -322,10 +317,15 @@ class DatabaseClient:
 
     def delete_document_knowledge_graph(self, document_id):
         """Delete knowledge graph data for a document"""
-        if not self.neo4j_service:
-            logger.warning("Neo4j service not available")
-            return False
-        return self.neo4j_service.delete_document_graph(document_id)
+        if self.graph_db_type == 'neo4j' and self.neo4j_service:
+            return self.neo4j_service.delete_document_graph(document_id)
+
+        if self.sqlite_service:
+            # Clearing with an empty payload removes existing rows.
+            return self.sqlite_service.save_knowledge_graph(document_id, {"entities": [], "relations": []})
+
+        logger.warning("No graph database service available")
+        return False
 
     def test_connections(self):
         """Test both database connections"""
@@ -354,39 +354,45 @@ class DatabaseClient:
         return self.sqlite_service.save_entities_and_relationships(document_id, chunk_id, ontology)
 
     def get_document_ontology(self, document_id):
-        """Get document ontology from configured graph database or SQLite (legacy)"""
-        if self.graph_db_type == 'json' and self.json_kg_service:
-            return self.json_kg_service.get_document_ontology(document_id)
-        elif self.graph_db_type == 'neo4j' and self.neo4j_service:
+        """Get document ontology from the configured graph database."""
+        if self.graph_db_type == 'neo4j' and self.neo4j_service:
             # Neo4j implementation would go here
             logger.warning("Neo4j get_document_ontology not implemented yet")
             return {'entities': [], 'relationships': []}
-        else:
-            # Fallback to SQLite for legacy compatibility
-            if not self.sqlite_service:
-                raise ValueError("No database service available")
-            return self.sqlite_service.get_document_ontology(document_id)
+        if not self.sqlite_service:
+            raise ValueError("No database service available")
+        return self.sqlite_service.get_document_ontology(document_id)
 
     def query_knowledge_graph(self, query: str):
         """Query the knowledge graph using natural language"""
-        if self.graph_db_type == 'json' and self.json_kg_service:
-            return self.json_kg_service.query_knowledge_graph(query)
-        elif self.graph_db_type == 'neo4j' and self.neo4j_service:
+        if self.graph_db_type == 'neo4j' and self.neo4j_service:
             logger.warning("Neo4j natural language query not implemented yet")
             return {'query': query, 'entities': [], 'relationships': [], 'total_results': 0}
-        else:
-            logger.warning("No graph database service available for querying")
-            return {'query': query, 'entities': [], 'relationships': [], 'total_results': 0}
+        if not self.sqlite_service:
+            raise ValueError("No database service available for querying")
+
+        snapshot = self.sqlite_service.get_graph_snapshot()
+        return {
+            'query': query,
+            'entities': snapshot.get('nodes', []),
+            'relationships': snapshot.get('edges', []),
+            'total_results': len(snapshot.get('nodes', [])) + len(snapshot.get('edges', []))
+        }
 
     def get_graph_stats(self):
         """Get statistics about the knowledge graph"""
-        if self.graph_db_type == 'json' and self.json_kg_service:
-            return self.json_kg_service.get_stats()
-        elif self.graph_db_type == 'neo4j' and self.neo4j_service:
+        if self.graph_db_type == 'neo4j' and self.neo4j_service:
             logger.warning("Neo4j stats not implemented yet")
             return {}
-        else:
-            return {}
+        if not self.sqlite_service:
+            raise ValueError("SQLite service not initialized")
+
+        snapshot = self.sqlite_service.get_graph_snapshot()
+        return {
+            "documents": len(snapshot.get("documents", [])),
+            "entities": len(snapshot.get("nodes", [])),
+            "relationships": len(snapshot.get("edges", [])),
+        }
 
     def close(self):
         """Close all database connections"""
@@ -394,8 +400,6 @@ class DatabaseClient:
             self.sqlite_service.close()
         if self.neo4j_service and hasattr(self.neo4j_service, 'close'):
             self.neo4j_service.close()
-        if self.json_kg_service and hasattr(self.json_kg_service, 'close'):
-            self.json_kg_service.close()
         logger.info("DatabaseClient closed")
 
     def get_chunk_ontology(self, chunk_id):
@@ -409,14 +413,6 @@ class DatabaseClient:
         if not self.sqlite_service:
             raise ValueError("SQLite service not initialized")
         return self.sqlite_service.save_document_ontology(document_id, ontology)
-
-    def close(self):
-        """Close all database connections"""
-        if self.sqlite_service and hasattr(self.sqlite_service, 'close'):
-            self.sqlite_service.close()
-
-        if self.neo4j_service:
-            self.neo4j_service.close()
 
     def __enter__(self):
         return self

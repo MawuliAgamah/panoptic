@@ -4,11 +4,12 @@ import uvicorn
 import tempfile
 import uuid
 import os
-from typing import Optional, Dict
+from typing import Optional, Dict, List, Any
 import logging
 import sys
 from pathlib import Path
 from pydantic import BaseModel, Field
+import json
 
 # Add the src directory to Python path
 current_dir = Path(__file__).parent  # src/application/server/
@@ -56,7 +57,6 @@ async def test_endpoint():
 async def echo_message(message: dict):
     return {"echo": message, "received_at": "now"}
 
-
 class DocumentRegistration(BaseModel):
     document_id: str = Field(..., alias="document_id")
     title: str
@@ -69,6 +69,12 @@ class DocumentRegistration(BaseModel):
 
 
 registered_documents: Dict[str, DocumentRegistration] = {}
+
+
+class GraphSnapshotPayload(BaseModel):
+    nodes: List[Dict[str, Any]]
+    edges: List[Dict[str, Any]]
+    documents: List[Dict[str, Any]]
 
 
 @app.post("/api/documents/register")
@@ -95,6 +101,39 @@ async def list_registered_documents():
         "count": len(registered_documents),
         "items": [doc.model_dump(by_alias=True) for doc in registered_documents.values()],
     }
+
+
+@app.delete("/api/documents/{document_id}")
+async def delete_document(document_id: str):
+    """Delete a document and its graph data."""
+    with create_json_client() as client:
+        client.delete_document(document_id)
+
+    if document_id in registered_documents:
+        registered_documents.pop(document_id, None)
+
+    return {"success": True, "document_id": document_id}
+
+
+@app.get("/api/graph")
+async def get_graph_snapshot(document_id: Optional[str] = None):
+    """Return the current graph snapshot, optionally filtered by document."""
+    with create_json_client() as client:
+        snapshot = client.get_graph_snapshot(document_id=document_id)
+    return snapshot
+
+
+@app.post("/api/graph/save")
+async def save_graph_snapshot(payload: GraphSnapshotPayload):
+    """Accept a client-provided snapshot. Currently acts as a no-op acknowledgment."""
+    logger.info(
+        "Received graph snapshot save request", extra={
+            "node_count": len(payload.nodes),
+            "edge_count": len(payload.edges),
+            "document_count": len(payload.documents),
+        }
+    )
+    return {"success": True}
 
 # Extract the knowledge graph from the uploaded document
 @app.post("/api/extract-kg")
@@ -127,37 +166,58 @@ async def extract_knowledge_graph(
         temp_file.write(content)
     
     logger.info(f"Saved file to: {temp_path}")
-    
-    # Process with your knowledge graph client
-    import PyPDF2
-    
-    # Extract text from PDF first
+
     try:
-        with open(temp_path, 'rb') as file:
-            reader = PyPDF2.PdfReader(file)
-            text = ""
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
-        logger.info(f"Extracted {len(text)} characters from PDF")
-    except Exception as e:
-        logger.error(f"Error extracting PDF text: {e}")
-        return {
-            "success": False,
-            "message": f"Failed to extract text from PDF: {str(e)}",
-            "document_id": document_id,
-            "filename": file.filename,
-            "content_type": file.content_type,
-        }
-    
-    # Now process with knowledge graph client
-    with create_json_client() as client:
-        kg_json = client.extract_knowledge_graph_with_kggen(text=text)
+        with create_json_client() as client:
+            processed_id = client.add_document(
+                document_path=temp_path,
+                document_id=document_id,
+                document_type="pdf",
+                domain=domain,
+                tags=tag_list,
+            )
 
+            graph_snapshot = client.get_graph_snapshot(document_id=processed_id)
+    finally:
+        try:
+            os.remove(temp_path)
+        except OSError:
+            logger.warning("Failed to remove temporary file %s", temp_path)
 
-    return {
+    id_to_label = {node["id"]: node["label"] for node in graph_snapshot.get("nodes", [])}
+    kg_data = {
+        "entities": [node["label"] for node in graph_snapshot.get("nodes", [])],
+        "relations": [
+            [
+                id_to_label.get(edge.get("source"), edge.get("source")),
+                edge.get("predicate"),
+                id_to_label.get(edge.get("target"), edge.get("target")),
+            ]
+            for edge in graph_snapshot.get("edges", [])
+        ],
+    }
+
+    entity_count = len(graph_snapshot.get("nodes", []))
+    relation_count = len(graph_snapshot.get("edges", []))
+
+    response_data = {
         "success": True,
-        "message": f"Knowledge graph extracted from {file}",
-        "kg_json": kg_json}
+        "message": f"Knowledge graph extracted from {file.filename}",
+        "document_id": document_id,
+        "filename": file.filename,
+        "content_type": file.content_type,
+        "kg_data": kg_data,
+        "entity_count": entity_count,
+        "relation_count": relation_count,
+        "graph": graph_snapshot,
+    }
+
+    logger.info(
+        "Extraction complete",
+        extra={"entities": entity_count, "relations": relation_count, "document_id": document_id},
+    )
+
+    return response_data
 
 # Run the server
 # In src/application/server/main.py, change the uvicorn.run call:
@@ -166,12 +226,12 @@ if __name__ == "__main__":
     from pathlib import Path
     
     # Add project root to Python path when running from server directory
-    current_dir = Path(__file__).parent  # server/
-    project_root = current_dir.parent.parent.parent  # project root
+    current_dir = Path(__file__).parent  
+    project_root = current_dir.parent.parent.parent 
     sys.path.insert(0, str(project_root))
     
     uvicorn.run(
-        "src.application.server.main:app",  # Now this will work
+        "src.application.server.main:app",  
         host="0.0.0.0",  
         port=8001,
         reload=True  

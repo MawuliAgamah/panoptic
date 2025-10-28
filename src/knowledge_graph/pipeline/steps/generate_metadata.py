@@ -71,5 +71,6 @@ class GenerateMetadataStep(PipelineStep):
         context.results[self.name] = {
             "tag_count": len(getattr(document.metadata, "tags", []) or []),
             "category_count": len(getattr(document.metadata, "categories", []) or []),
+            "word_count": document.metadata.word_count,
         }
         return context

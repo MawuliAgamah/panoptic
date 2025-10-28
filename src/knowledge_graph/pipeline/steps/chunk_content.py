@@ -69,7 +69,12 @@ class ChunkContentStep(PipelineStep):
             chunker_type=self.chunker_type,
         )
         context.set_document(document)
+        chunk_count = len(document.textChunks or [])
         context.results[self.name] = {
-            "chunk_count": len(document.textChunks or []),
+            "chunk_count": chunk_count,
+            "chunk_size": self.chunk_size,
+            "chunk_overlap": self.chunk_overlap,
         }
+        if chunk_count == 0:
+            logger.info("No chunks generated for document %s", document.id)
         return context

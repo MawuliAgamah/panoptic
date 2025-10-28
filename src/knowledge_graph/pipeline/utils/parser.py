@@ -5,6 +5,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Dict, Type
 
+try:  # Optional dependency for PDF parsing
+    import PyPDF2  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency
+    PyPDF2 = None
+
 
 class DocumentParser(ABC):
     """Base class for document parsers."""
@@ -62,6 +67,26 @@ class ParserFactory:
         "txt": TextParser,
         "text": TextParser,
     }
+
+    if PyPDF2 is not None:
+        class PDFParser(DocumentParser):
+            """Parser for PDF documents using PyPDF2."""
+
+            def parse(self, file_path: str) -> str:
+                try:
+                    with open(file_path, "rb") as pdf_file:
+                        reader = PyPDF2.PdfReader(pdf_file)
+                        pages = [page.extract_text() or "" for page in reader.pages]
+                    print(f"PDF file parsed: {len(pages)} pages")
+                    return "\n".join(pages)
+                except Exception as exc:  # pragma: no cover - depends on PyPDF2 internals
+                    print(f"Error parsing PDF file {file_path}: {exc}")
+                    return ""
+
+        _parsers.update({
+            "pdf": PDFParser,
+            ".pdf": PDFParser,
+        })
 
     @classmethod
     def get_parser(cls, document_type: str) -> DocumentParser:

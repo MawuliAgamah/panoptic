@@ -1,5 +1,19 @@
 <template>
   <section class="graph-canvas" role="presentation" aria-label="Knowledge graph canvas">
+    <div class="graph-canvas__controls">
+      <button type="button" class="graph-control" @click="runAutoLayout" :disabled="!hasGraph">
+        Layout
+      </button>
+      <button type="button" class="graph-control" @click="fitToView" :disabled="!hasGraph">
+        Fit
+      </button>
+      <button type="button" class="graph-control" @click="zoomIn" :disabled="!hasGraph">
+        +
+      </button>
+      <button type="button" class="graph-control" @click="zoomOut" :disabled="!hasGraph">
+        -
+      </button>
+    </div>
     <div ref="containerRef" class="graph-canvas__surface" />
     <div v-if="showPlaceholder" class="graph-canvas__placeholder">
       <h2>Knowledge Graph Workspace</h2>
@@ -38,6 +52,7 @@ const containerRef = ref<HTMLDivElement | null>(null)
 let cy: Core | null = null
 
 const showPlaceholder = computed(() => nodes.value.length === 0)
+const hasGraph = computed(() => nodes.value.length > 0 || edges.value.length > 0)
 
 onMounted(() => {
   if (!containerRef.value) return
@@ -206,6 +221,34 @@ function runLayout() {
   cy.layout({ name: 'cose', animate: false, idealEdgeLength: 120 }).run()
 }
 
+function runAutoLayout() {
+  runLayout()
+  fitToView()
+}
+
+function fitToView() {
+  if (!cy) return
+  cy.fit(undefined, 60)
+}
+
+function zoomIn() {
+  if (!cy) return
+  const current = cy.zoom()
+  cy.zoom({
+    level: Math.min(current + 0.2, 2.5),
+    renderedPosition: cy.renderedCenter()
+  })
+}
+
+function zoomOut() {
+  if (!cy) return
+  const current = cy.zoom()
+  cy.zoom({
+    level: Math.max(current - 0.2, 0.2),
+    renderedPosition: cy.renderedCenter()
+  })
+}
+
 function generateFallbackPosition() {
   return {
     x: Math.random() * 500 + 200,
@@ -301,14 +344,49 @@ function nodeColor(nodeType: GraphNode['type']) {
   position: relative;
   border-radius: 24px;
   border: 1px solid rgba(15, 49, 103, 0.08);
-  background: radial-gradient(circle at 20% 20%, rgba(15, 49, 103, 0.08), transparent 35%),
-    rgba(255, 255, 255, 0.9);
+  background:
+    linear-gradient(rgba(15, 49, 103, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 49, 103, 0.05) 1px, transparent 1px),
+    radial-gradient(circle at 20% 20%, rgba(15, 49, 103, 0.08), transparent 35%),
+    rgba(255, 255, 255, 0.92);
+  background-size: 32px 32px, 32px 32px, 100% 100%, 100% 100%;
   overflow: hidden;
 }
 
 .graph-canvas__surface {
   width: 100%;
   height: 100%;
+}
+
+.graph-canvas__controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 2;
+}
+
+.graph-control {
+  border: 1px solid rgba(15, 49, 103, 0.15);
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f3167;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.graph-control:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.graph-control:not(:disabled):hover {
+  background: rgba(15, 49, 103, 0.08);
+  border-color: rgba(15, 49, 103, 0.25);
 }
 
 .graph-canvas__placeholder {

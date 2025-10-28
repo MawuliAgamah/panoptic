@@ -9,50 +9,7 @@ export const fileInput = ref<HTMLInputElement | null>(null)
 
 const BASE_URL = 'http://127.0.0.1:8001'
 
-// Test health endpoint - Fixed: Use /health not /api/health
-export const testHealth = async () => {
-    try {
-        lastError.value = ''
-        console.log('Making health check request to:', `${BASE_URL}/health`)
-        
-        const response = await fetch(`${BASE_URL}/health`)
-        console.log('Health check response status:', response.status)
-        console.log('Health check response headers:', response.headers)
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`)
-        }
-        
-        const data = await response.json()
-        lastResponse.value = data
-        console.log('Health check response data:', data)
-    } catch (error) {
-        lastError.value = `Health check failed: ${error}`
-        console.error('Health check error:', error)
-    }
-}
 
-// Test basic API endpoint
-export const testEndpoint = async () => {
-    try {
-        lastError.value = ''
-        console.log('Making test endpoint request to:', `${BASE_URL}/api/test`)
-        
-        const response = await fetch(`${BASE_URL}/api/test`)
-        console.log('Test endpoint response status:', response.status)
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`)
-        }
-        
-        const data = await response.json()
-        lastResponse.value = data
-        console.log('Test endpoint response data:', data)
-    } catch (error) {
-        lastError.value = `Test endpoint failed: ${error}`
-        console.error('Test endpoint error:', error)
-    }
-}
 
 // Test echo POST endpoint
 export const testEcho = async () => {
@@ -130,7 +87,16 @@ export const uploadSelectedFile = async () => {
         
         const data = await response.json()
         lastResponse.value = data
-        console.log('Upload response:', data)
+        
+        // Enhanced logging for debugging
+        console.log('🔍 Upload response received:', data)
+        console.log('🔍 Response success:', data.success)
+        console.log('🔍 Response message:', data.message)
+        console.log('🔍 Entity count:', data.entity_count)
+        console.log('🔍 Relation count:', data.relation_count)
+        console.log('🔍 KG data keys:', data.kg_data ? Object.keys(data.kg_data) : 'No kg_data')
+        console.log('🔍 First 3 entities:', data.kg_data?.entities?.slice(0, 3))
+        console.log('🔍 First 3 relations:', data.kg_data?.relations?.slice(0, 3))
         
         // Reset file input
         selectedFile.value = null

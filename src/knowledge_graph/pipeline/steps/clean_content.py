@@ -76,5 +76,6 @@ class CleanContentStep(PipelineStep):
         context.results[self.name] = {
             "raw_length": len(document.raw_content or ""),
             "clean_length": len(document.clean_content or ""),
+            "wiki_links": len(getattr(document, "wiki_links", []) or []),
         }
         return context

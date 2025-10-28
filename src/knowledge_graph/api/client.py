@@ -1,6 +1,7 @@
 from typing import Dict, Optional, Union, List, Any
 import logging
 from pathlib import Path
+from datetime import datetime
 from ..core.db.db_client import DatabaseClient
 from ..pipeline import DocumentPipelineConfig
 from ..config import (
@@ -383,20 +384,7 @@ class KnowledgeGraphClient:
                 }
             }
 
-    # Graph Operations
-    def create_graph(self, name: str, description: Optional[str] = None) -> str:
-        """
-        Create a new knowledge graph.
-        
-        Args:
-            name: Name for the new graph
-            description: Optional description
-            
-        Returns:
-            graph_id: Unique ID for the created graph
-        """
-        # Implementation
-        return f"graph_{name}"
+
     
     # Query Operations
     def query(self, query_text: str, graph_id: Optional[str] = None) -> Dict[str, Any]:
@@ -420,11 +408,16 @@ class KnowledgeGraphClient:
         Returns:
             List of unique document IDs
         """
-        if self.db_client.json_kg_service:
-            return self.db_client.json_kg_service.get_all_document_ids()
-        else:
-            self.logger.warning("Document ID lookup not available for current database configuration")
-            return []
+        snapshot = self.db_client.get_graph_snapshot()
+        return [doc.get("id") for doc in snapshot.get("documents", [])]
+
+    def get_graph_snapshot(self, document_id: Optional[str] = None) -> Dict[str, Any]:
+        """Return a GraphSnapshot derived from the SQLite persistence layer."""
+        try:
+            return self.db_client.get_graph_snapshot(document_id)
+        except Exception as exc:
+            self.logger.error(f"Failed to build graph snapshot: {exc}")
+            return {"nodes": [], "edges": [], "documents": []}
 
     # Advanced KG Extraction using kggen
     def extract_knowledge_graph_with_kggen(self,text: str,context: Optional[str] = None,strategy: str = "detailed") -> Dict[str, Any]:
@@ -583,6 +576,4 @@ if __name__ == "__main__":
             "api_key": api_key
         })
 
-    document_id = client.add_document(document_path="/Users/mawuliagamah/Downloads/Chapter 1_ Prompt Chaining.pdf", document_id="2", document_type="pdf")
-    client.extract_document_ontology(document_id)
     

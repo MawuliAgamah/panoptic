@@ -81,6 +81,15 @@ class WebServer:
     def setup_routes(self):
         """Setup all API routes"""
 
+        def require_json_service(client):
+            svc = getattr(client.db_client, "json_kg_service", None)
+            if svc is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail="JSON knowledge store operations are disabled; the server is running in SQLite-only mode.",
+                )
+            return svc
+
         @self.app.get("/", response_class=HTMLResponse)
         async def root():
             """Serve the main visualization page with modular components"""
@@ -154,7 +163,7 @@ class WebServer:
                     raise HTTPException(status_code=400, detail="'name' is required")
 
                 with create_json_client() as client:
-                    svc = client.db_client.json_kg_service
+                    svc = require_json_service(client)
                     # Add entity (user-created)
                     entity = svc.add_custom_entity(
                         name=name,
@@ -197,7 +206,7 @@ class WebServer:
                     raise HTTPException(status_code=400, detail="'knowledge_graph' data is required")
                 
                 with create_json_client() as client:
-                    svc = client.db_client.json_kg_service
+                    svc = require_json_service(client)
                     
                     # Add entities and relationships in batch
                     created_entities = svc.add_entities_batch(kg_data.get('entities', []))
@@ -251,7 +260,7 @@ class WebServer:
             """Clear all data from the knowledge store."""
             try:
                 with create_json_client() as client:
-                    svc = client.db_client.json_kg_service
+                    svc = require_json_service(client)
                     result = svc.clear_knowledge_store()
                     
                 return JSONResponse(content={
@@ -276,7 +285,7 @@ class WebServer:
                 if source_id is None or target_id is None:
                     raise HTTPException(status_code=400, detail="'source_id' and 'target_id' are required")
                 with create_json_client() as client:
-                    svc = client.db_client.json_kg_service
+                    svc = require_json_service(client)
                     def resolve(val: Any) -> Optional[str]:
                         try:
                             eid = int(val)

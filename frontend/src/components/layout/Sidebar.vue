@@ -20,9 +20,14 @@
             </span>
             <span v-if="doc.description" class="doc-list__description">{{ doc.description }}</span>
           </div>
-          <span class="doc-list__status" :data-status="doc.status">
-            {{ doc.status }}
-          </span>
+          <div class="doc-list__actions">
+            <span class="doc-list__status" :data-status="doc.status">
+              {{ doc.status }}
+            </span>
+            <button class="doc-list__delete" type="button" @click="handleDeleteDocument(doc.id)">
+              Delete
+            </button>
+          </div>
         </li>
       </ul>
     </section>
@@ -89,6 +94,12 @@ import { useGraphStore } from '@/stores/graphStore'
 
 const graphStore = useGraphStore()
 const { documents, metrics } = storeToRefs(graphStore)
+
+function handleDeleteDocument(documentId: string) {
+  graphStore.deleteDocument(documentId).catch((error) => {
+    console.error('Failed to delete document', error)
+  })
+}
 </script>
 
 <style scoped>
@@ -156,28 +167,50 @@ const { documents, metrics } = storeToRefs(graphStore)
   border: 1px solid rgba(15, 49, 103, 0.08);
   background: #fff;
   display: flex;
-  justify-content: space-between;
+  align-items: center;
   gap: 12px;
 }
 
 .doc-list__meta {
   display: flex;
+  flex: 1;
+  min-width: 0;
   flex-direction: column;
+  gap: 4px;
 }
 
 .doc-list__title {
   font-weight: 600;
   color: #0f3167;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .doc-list__info {
   font-size: 12px;
   color: rgba(18, 20, 23, 0.6);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .doc-list__description {
   font-size: 11px;
   color: rgba(18, 20, 23, 0.55);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-list__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+  min-width: 72px;
 }
 
 .doc-list__status {
@@ -198,6 +231,23 @@ const { documents, metrics } = storeToRefs(graphStore)
 
 .doc-list__status[data-status='error'] {
   color: #c62828;
+}
+
+.doc-list__delete {
+  border: 1px solid rgba(198, 40, 40, 0.2);
+  background: #fff5f5;
+  color: #c62828;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.doc-list__delete:hover {
+  background: rgba(198, 40, 40, 0.1);
+  border-color: rgba(198, 40, 40, 0.35);
 }
 
 .metric-card {

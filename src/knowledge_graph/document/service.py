@@ -6,7 +6,6 @@ from ..pipeline.steps import (
     LoadDocumentStep,
     CleanContentStep,
     ChunkContentStep,
-    EnrichChunksStep,
     GenerateMetadataStep,
     ExtractKnowledgeGraphStep,
     PersistDocumentStep,
@@ -56,7 +55,6 @@ class DocumentService:
                 chunk_overlap=config.chunk_overlap,
                 chunker_type=config.chunker_type,
             ),
-            EnrichChunksStep(enabled=enrichment_enabled),
             GenerateMetadataStep(),
             ExtractKnowledgeGraphStep(
                 enabled=kg_enabled,
@@ -66,6 +64,11 @@ class DocumentService:
             ),
             PersistDocumentStep(self.db_client, enabled=persistence_enabled),
         ]
+
+        if enrichment_enabled:
+            self.logger.warning(
+                "Chunk enrichment step is currently disabled; enable when chunk pipeline is ready"
+            )
 
         services = DocumentPipelineServices(
             llm_service=self.llm_service,

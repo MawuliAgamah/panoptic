@@ -78,7 +78,12 @@ async function handleLocalFileChange(event: Event) {
     })
 
     try {
-      await uploadLocalDocument(file, { documentId: doc.id })
+      const result = await uploadLocalDocument(file, { documentId: doc.id })
+      if (result.graph) {
+        graphStore.applySnapshot(result.graph)
+      } else {
+        await graphStore.loadGraph()
+      }
       graphStore.updateDocument(doc.id, {
         status: 'ready',
         description: formatFileDescription(file)
