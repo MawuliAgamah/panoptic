@@ -6,8 +6,7 @@ Integrates the existing JsonKnowledgeStore with the knowledge graph client.
 import logging
 from typing import Dict, List, Any, Optional
 from collections import defaultdict
-from src.services.knowledge_store import JsonKnowledgeStore
-
+from services.knowledge_store import JsonKnowledgeStore
 logger = logging.getLogger(__name__)
 
 class JsonKnowledgeGraphService:

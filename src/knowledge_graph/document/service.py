@@ -1,24 +1,97 @@
-from .models.document import Document, DocumentMetadata
-from .models.chunk import TextChunk
-from .preprocessing.processor import DocumentProcessor
-#from .cache.cache_manager import CacheManager
-from typing import Dict, Any
+from typing import Optional
 import logging
 import uuid
+from ..pipeline import DocumentPipeline, DocumentPipelineConfig, DocumentPipelineServices
+from ..pipeline.steps import (
+    LoadDocumentStep,
+    CleanContentStep,
+    ChunkContentStep,
+    EnrichChunksStep,
+    GenerateMetadataStep,
+    ExtractKnowledgeGraphStep,
+    PersistDocumentStep,
+)
+from ..knowledge_graph.service import KnowledgeGraphService
 
 class DocumentService:
     """Service for document operations, used by the client"""
 
-    def __init__(self, db_client, llm_service=None, llm_provider="openai"):
+    def __init__(
+        self,
+        db_client,
+        llm_service=None,
+        llm_provider="openai",
+        pipeline_config: Optional[DocumentPipelineConfig] = None,
+        kg_service=None,
+    ):
         self.logger = logging.getLogger("knowledgeAgent.document")
         self.db_client = db_client
         self.llm_service = llm_service
+        self.llm_provider = llm_provider
 
-        # initialize document processor
-        self.processor = DocumentProcessor(
-            db_client=self.db_client,
+        if kg_service is not None:
+            self.kg_service = kg_service
+        elif db_client is not None:
+            self.kg_service = KnowledgeGraphService(
+                db_client=db_client,
+                llm_service=llm_service,
+                llm_provider=llm_provider,
+            )
+        else:
+            self.kg_service = None
+
+        self.pipeline_config = pipeline_config or DocumentPipelineConfig()
+        self.pipeline = self._create_pipeline(self.pipeline_config)
+
+    def _create_pipeline(self, config: DocumentPipelineConfig) -> DocumentPipeline:
+        enrichment_enabled = config.enable_enrichment
+        kg_enabled = config.enable_kg_extraction
+        persistence_enabled = config.enable_persistence and self.db_client is not None
+
+        steps = [
+            LoadDocumentStep(),
+            CleanContentStep(),
+            ChunkContentStep(
+                chunk_size=config.chunk_size,
+                chunk_overlap=config.chunk_overlap,
+                chunker_type=config.chunker_type,
+            ),
+            EnrichChunksStep(enabled=enrichment_enabled),
+            GenerateMetadataStep(),
+            ExtractKnowledgeGraphStep(
+                enabled=kg_enabled,
+                chunk_size=config.chunk_size,
+                chunk_overlap=config.chunk_overlap,
+                chunker_type=config.chunker_type,
+            ),
+            PersistDocumentStep(self.db_client, enabled=persistence_enabled),
+        ]
+
+        services = DocumentPipelineServices(
             llm_service=self.llm_service,
-            llm_provider=llm_provider
+            kg_service=self.kg_service,
+            db_client=self.db_client,
+            llm_provider=self.llm_provider,
+        )
+
+        return DocumentPipeline(
+            services=services,
+            config=config,
+            steps=steps,
+        )
+
+    def build_pipeline(self, config: DocumentPipelineConfig) -> DocumentPipeline:
+        """Construct a new pipeline instance using the provided configuration."""
+        return self._create_pipeline(config)
+
+    def process_document(self, document_path, document_id, domain=None, tags=None, pipeline=None):
+        """Run the configured pipeline and return the processed document."""
+        active_pipeline = pipeline or self.pipeline
+        return active_pipeline.run(
+            document_path=document_path,
+            document_id=document_id,
+            domain=domain,
+            tags=tags,
         )
         
     def add_document(self, document_path, document_type=None, document_id=None, domain=None, tags=None, cache=True):
@@ -27,13 +100,11 @@ class DocumentService:
             # Generate document ID if not provided
             if document_id is None:
                 document_id = str(uuid.uuid4())
-                
-            # Process document
-            document = self.processor.process_document(document_path, document_id, domain=domain, tags=tags)
+
+            document = self.process_document(document_path, document_id, domain=domain, tags=tags)
             if document is None:
                 self.logger.error("Failed to process document")
                 return None
-                
             return document.id
             
         except Exception as e:

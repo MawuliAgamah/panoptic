@@ -1,24 +1,19 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Home from './Home.vue'
-import KG_Extract from './KGExtract.vue'
-
-
-const routes = [
-  {
-    path: '/',
-    name: 'Home',
-    component: Home
-  },
-  {
-    path: '/visualisation',
-    name: 'visualisation',
-    component: KG_Extract
-  },
-]
+import Dashboard from '@/views/Dashboard.vue'
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes: [
+    {
+      path: '/',
+      name: 'dashboard',
+      component: Dashboard
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: { name: 'dashboard' }
+    }
+  ]
 })
 
 export default router

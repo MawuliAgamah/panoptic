@@ -1,14 +1,14 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import tempfile
 import uuid
 import os
-from typing import Optional
+from typing import Optional, Dict
 import logging
 import sys
 from pathlib import Path
+from pydantic import BaseModel, Field
 
 # Add the src directory to Python path
 current_dir = Path(__file__).parent  # src/application/server/
@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
-    title="Simple API Server",
-    description="A simple FastAPI server",
+    title="KG Extract Backend",
+    description="Backend APIs supporting the KG Extract demo",
     version="1.0.0"
 )
 
@@ -55,6 +55,46 @@ async def test_endpoint():
 @app.post("/api/echo")
 async def echo_message(message: dict):
     return {"echo": message, "received_at": "now"}
+
+
+class DocumentRegistration(BaseModel):
+    document_id: str = Field(..., alias="document_id")
+    title: str
+    source: str
+    mime_type: Optional[str] = Field(default=None, alias="mime_type")
+    author: Optional[str] = None
+    external_id: Optional[str] = Field(default=None, alias="external_id")
+    url: Optional[str] = None
+    description: Optional[str] = None
+
+
+registered_documents: Dict[str, DocumentRegistration] = {}
+
+
+@app.post("/api/documents/register")
+async def register_document(payload: DocumentRegistration):
+    registered_documents[payload.document_id] = payload
+    logger.info(
+        "Registered remote document",
+        extra={
+            "document_id": payload.document_id,
+            "source": payload.source,
+            "external_id": payload.external_id,
+        },
+    )
+    return {
+        "success": True,
+        "document_id": payload.document_id,
+        "message": "Document metadata stored.",
+    }
+
+
+@app.get("/api/documents")
+async def list_registered_documents():
+    return {
+        "count": len(registered_documents),
+        "items": [doc.model_dump(by_alias=True) for doc in registered_documents.values()],
+    }
 
 # Extract the knowledge graph from the uploaded document
 @app.post("/api/extract-kg")
@@ -89,43 +129,50 @@ async def extract_knowledge_graph(
     logger.info(f"Saved file to: {temp_path}")
     
     # Process with your knowledge graph client
+    import PyPDF2
+    
+    # Extract text from PDF first
+    try:
+        with open(temp_path, 'rb') as file:
+            reader = PyPDF2.PdfReader(file)
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text() + "\n"
+        logger.info(f"Extracted {len(text)} characters from PDF")
+    except Exception as e:
+        logger.error(f"Error extracting PDF text: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to extract text from PDF: {str(e)}",
+            "document_id": document_id,
+            "filename": file.filename,
+            "content_type": file.content_type,
+        }
+    
+    # Now process with knowledge graph client
     with create_json_client() as client:
-        #kg_data = client.extract_knowledge_graph_json(
-        #    document_path=temp_path,
-        #    document_id=document_id,
-        #    domain=domain,
-        #    tags=tag_list)
-        client.add_document(document_path=temp_path, document_id=document_id, document_type="pdf")
-    
-    # Count Results 
-    #entities_count = len(kg_data.get('entities', []))
-    #relationships_count = len(kg_data.get('relationships', []))
-    
-   #  logger.info(f"Extracted {entities_count} entities and {relationships_count} relationships")
-    
-    # Return complete results
+        kg_json = client.extract_knowledge_graph_with_kggen(text=text)
+
+
     return {
         "success": True,
-        "message": f"Knowledge graph extracted from {file.filename}",
-        "document_id": document_id,
-        "filename": file.filename,
-        "content_type": file.content_type,
-        # "domain": domain,
-        # "tags": tag_list,
-        # "extraction_stats": {
-        #     "entities_count": entities_count,
-        #     "relationships_count": relationships_count,
-        #     "processing_strategy": kg_data.get('metadata', {}).get('processing_strategy', 'unknown')
-        # },
-        # "knowledge_graph": kg_data
-    }
+        "message": f"Knowledge graph extracted from {file}",
+        "kg_json": kg_json}
 
 # Run the server
+# In src/application/server/main.py, change the uvicorn.run call:
 if __name__ == "__main__":    
+    import sys
+    from pathlib import Path
+    
+    # Add project root to Python path when running from server directory
+    current_dir = Path(__file__).parent  # server/
+    project_root = current_dir.parent.parent.parent  # project root
+    sys.path.insert(0, str(project_root))
+    
     uvicorn.run(
-        app,
+        "src.application.server.main:app",  # Now this will work
         host="0.0.0.0",  
         port=8001,
-        reload=True     
+        reload=True  
     )
-

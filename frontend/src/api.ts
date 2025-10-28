@@ -5,7 +5,7 @@ export const lastResponse = ref(null)
 export const lastError = ref('')
 export const showFileInput = ref(false)
 export const selectedFile = ref<File | null>(null)
-export const fileInput = ref<HTMLInputElement>()
+export const fileInput = ref<HTMLInputElement | null>(null)
 
 const BASE_URL = 'http://127.0.0.1:8001'
 
@@ -95,9 +95,12 @@ export const testFileUpload = () => {
 // Handle file selection
 export const onFileSelected = (event: Event) => {
     const target = event.target as HTMLInputElement
-    if (target.files && target.files.length > 0) {
-        selectedFile.value = target.files[0]
+    const files = target.files
+    if (!files || files.length === 0) {
+        selectedFile.value = null
+        return
     }
+    selectedFile.value = files.item(0)
 }
 
 // Upload selected file
@@ -106,11 +109,12 @@ export const uploadSelectedFile = async () => {
         lastError.value = 'No file selected'
         return
     }
+    const file = selectedFile.value as File
     
     try {
         lastError.value = ''
         const formData = new FormData()
-        formData.append('file', selectedFile.value)
+        formData.append('file', file as Blob, file.name)
         formData.append('domain', 'test')
         formData.append('tags', JSON.stringify(['frontend', 'test'])) // Server expects JSON string
         formData.append('document_id', `test_${Date.now()}`) // Add document ID

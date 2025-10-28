@@ -1414,7 +1414,7 @@ requires-dist = [
     { name = "fastapi" },
     { name = "gensim" },
     { name = "jinja2" },
-    { name = "kg-gen", specifier = ">=0.1.6" },
+    { name = "kg-gen" },
     { name = "langchain" },
     { name = "langchain-community" },
     { name = "langchain-experimental" },

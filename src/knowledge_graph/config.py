@@ -31,7 +31,7 @@ class DatabaseConfig:
 class LLMConfig:
     """LLM configuration with provider-specific settings."""
     provider: str = "openai"  # openai, ollama, etc.
-    model: str = "gpt-3.5-turbo"
+    model: str = "gpt-4o-mini"
     api_key: Optional[str] = None
     temperature: float = 0.2
     max_tokens: int = 1000
@@ -71,6 +71,17 @@ class KGExtractionConfig:
 
 
 @dataclass
+class DocumentPipelineSettings:
+    """Optional toggles for the document processing pipeline."""
+    enable_enrichment: bool = True
+    enable_kg_extraction: bool = True
+    enable_persistence: bool = True
+    chunk_size: int = 1000
+    chunk_overlap: int = 200
+    chunker_type: str = "structured_markdown"
+
+
+@dataclass
 class KnowledgeGraphConfig:
     """Main configuration class that consolidates all configs."""
     graph_db: DatabaseConfig
@@ -78,6 +89,7 @@ class KnowledgeGraphConfig:
     llm: Optional[LLMConfig] = None
     cache: Optional[CacheConfig] = None
     kg_extraction: Optional[KGExtractionConfig] = None
+    document_pipeline: Optional[DocumentPipelineSettings] = None
     log_level: str = "INFO"
     max_connections: int = 10
     timeout: int = 30
@@ -92,6 +104,9 @@ class KnowledgeGraphConfig:
 
         if self.kg_extraction is None:
             self.kg_extraction = KGExtractionConfig()
+
+        if self.document_pipeline is None:
+            self.document_pipeline = DocumentPipelineSettings()
 
         # Set cache DB to SQLite if not provided
         if self.cache_db is None:
@@ -123,12 +138,18 @@ class KnowledgeGraphConfig:
         kg_extraction_dict = config_dict.pop('kg_extraction', {})
         kg_extraction = KGExtractionConfig(**kg_extraction_dict) if kg_extraction_dict else None
 
+        pipeline_dict = config_dict.pop('document_pipeline', {})
+        document_pipeline = (
+            DocumentPipelineSettings(**pipeline_dict) if pipeline_dict else None
+        )
+
         return cls(
             graph_db=graph_db,
             cache_db=cache_db,
             llm=llm,
             cache=cache,
             kg_extraction=kg_extraction,
+            document_pipeline=document_pipeline,
             **config_dict
         )
 

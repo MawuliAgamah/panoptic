@@ -27,7 +27,7 @@ dependencies = [
     "requests",
     "pytest",
     "neo4j",
-    "kg-gen>=0.1.6",
+    "kg-gen",
     "fastapi",
     "uvicorn",
     "python-multipart",

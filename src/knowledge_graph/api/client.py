@@ -2,23 +2,18 @@ from typing import Dict, Optional, Union, List, Any
 import logging
 from pathlib import Path
 from ..core.db.db_client import DatabaseClient
+from ..pipeline import DocumentPipelineConfig
 from ..config import (
     KnowledgeGraphConfig,
     DatabaseConfig,
     LLMConfig,
     CacheConfig,
     KGExtractionConfig,
-    # Legacy imports for backward compatibility
     GraphDatabaseConfig,
     AuthCredentials
 )
 
 
-
-
-# Legacy config classes are now imported from config.py
-# This keeps backward compatibility while centralizing configuration
-    
 class KnowledgeGraphClient:
     """
     Main client interface for interacting with Knowledge Graphs.
@@ -176,19 +171,30 @@ class KnowledgeGraphClient:
             **{**llm_config_dict, **kg_extraction_config}
         )
 
-        # Initialize document and knowledge graph services
-        self.logger.info("Initializing document service")
-        self.document_service = DocumentService(
-            db_client=self.db_client,
-            llm_service=self.llm_service,
-            llm_provider=llm_provider
-        )
-
+        # Initialize knowledge graph and document services
         self.logger.info("Initializing knowledge graph service")
         self.knowledge_graph_service = KnowledgeGraphService(
             db_client=self.db_client,
             llm_service=self.llm_service,
             llm_provider=llm_provider
+        )
+
+        self.logger.info("Initializing document service")
+        pipeline_settings = getattr(self.config, 'document_pipeline', None)
+        pipeline_config = DocumentPipelineConfig(
+            enable_enrichment=getattr(pipeline_settings, 'enable_enrichment', True),
+            enable_kg_extraction=getattr(pipeline_settings, 'enable_kg_extraction', True),
+            enable_persistence=getattr(pipeline_settings, 'enable_persistence', True),
+            chunk_size=getattr(pipeline_settings, 'chunk_size', 1000),
+            chunk_overlap=getattr(pipeline_settings, 'chunk_overlap', 200),
+            chunker_type=getattr(pipeline_settings, 'chunker_type', 'structured_markdown'),
+        )
+        self.document_service = DocumentService(
+            db_client=self.db_client,
+            llm_service=self.llm_service,
+            llm_provider=llm_provider,
+            pipeline_config=pipeline_config,
+            kg_service=self.knowledge_graph_service,
         )
 
     # Document Operations
@@ -224,7 +230,6 @@ class KnowledgeGraphClient:
                 document_type = 'text'
             else:
                 document_type = 'unknown'
-            
             self.logger.info(f"Inferred document_type: {document_type}")
         
         # If document_id is None, generate a fallback ID
@@ -244,6 +249,7 @@ class KnowledgeGraphClient:
             tags=tags,
             cache=True
             )
+        
         document_id = result_id if result_id is not None else document_id
             
         self.logger.info(f"Document added with ID: {document_id}")
@@ -272,36 +278,29 @@ class KnowledgeGraphClient:
         Returns:
             Dictionary containing extracted entities, relationships, and metadata
         """
-        from ..document.manager.document_manager import DocumentManager
-        
         self.logger.info(f"Extracting knowledge graph JSON from: {document_path}")
         
-        # Create document manager for processing
-        doc_manager = DocumentManager(
-            llm_service=self.llm_service,
-            db_client=None,  # Don't pass db_client to prevent automatic saving
-            kg_service=self.knowledge_graph_service
-        )
-        
         try:
-            # Process document but don't save to database
-            document = doc_manager.make_new_document(document_path, document_id)
-            if not document:
-                raise Exception(f"Failed to create document from {document_path}")
-            
-            # Set document metadata
-            if hasattr(document, 'metadata'):
-                if domain:
-                    document.metadata.categories = [domain]
-                if tags:
-                    document.metadata.tags = tags
-            
-            # Clean and process document
-            document = doc_manager.clean_document(document)
-            document = doc_manager.generate_document_level_metadata(document)
-            
-            # Extract knowledge graph without saving
-            document = doc_manager.extract_knowledge_graph(document)
+            pipeline_settings = getattr(self.config, 'document_pipeline', None)
+            json_pipeline_config = DocumentPipelineConfig(
+                enable_enrichment=getattr(pipeline_settings, 'enable_enrichment', True),
+                enable_kg_extraction=getattr(pipeline_settings, 'enable_kg_extraction', True),
+                enable_persistence=False,
+                chunk_size=getattr(pipeline_settings, 'chunk_size', 1000),
+                chunk_overlap=getattr(pipeline_settings, 'chunk_overlap', 200),
+                chunker_type=getattr(pipeline_settings, 'chunker_type', 'structured_markdown'),
+            )
+
+            transient_pipeline = self.document_service.build_pipeline(json_pipeline_config)
+
+            document = transient_pipeline.run(
+                document_path=document_path,
+                document_id=document_id,
+                domain=domain,
+                tags=tags,
+            )
+            if document is None:
+                raise Exception(f"Failed to process document from {document_path}")
             
             # Convert to JSON format
             kg_json = {
@@ -384,20 +383,6 @@ class KnowledgeGraphClient:
                 }
             }
 
-    def extract_document_ontology(self, document_id: str):
-        """
-        Process a document to extract entities and relationships.
-        
-        Args:
-            document_id: ID of the document to process
-            
-        Returns:
-            processing_results: Dictionary with processing statistics
-        """
-        self.knowledge_graph_service.agentic_ontology_extraction(document_id)
-        self.logger.info(f"Ontology extracted for document {document_id}")
-
-    
     # Graph Operations
     def create_graph(self, name: str, description: Optional[str] = None) -> str:
         """
@@ -427,75 +412,6 @@ class KnowledgeGraphClient:
         """
         return self.db_client.query_knowledge_graph(query_text)
 
-    def get_knowledge_graph_stats(self) -> Dict[str, Any]:
-        """
-        Get statistics about the knowledge graph.
-
-        Returns:
-            Dictionary with statistics about entities, relationships, etc.
-        """
-        return self.db_client.get_graph_stats()
-
-    def search_entities(self, query: str) -> List[Dict[str, Any]]:
-        """
-        Search for entities in the knowledge graph.
-
-        Args:
-            query: Search query
-
-        Returns:
-            List of matching entities
-        """
-        if self.db_client.json_kg_service:
-            return self.db_client.json_kg_service.search_entities(query)
-        else:
-            self.logger.warning("Entity search not available for current database configuration")
-            return []
-
-    def search_relationships(self, query: str) -> List[Dict[str, Any]]:
-        """
-        Search for relationships in the knowledge graph.
-
-        Args:
-            query: Search query
-
-        Returns:
-            List of matching relationships
-        """
-        if self.db_client.json_kg_service:
-            return self.db_client.json_kg_service.search_relationships(query)
-        else:
-            self.logger.warning("Relationship search not available for current database configuration")
-            return []
-
-    def get_entity_relationships(self, entity_name: str) -> List[Dict[str, Any]]:
-        """
-        Get all relationships for a specific entity.
-
-        Args:
-            entity_name: Name of the entity
-
-        Returns:
-            List of relationships involving the entity
-        """
-        if self.db_client.json_kg_service:
-            return self.db_client.json_kg_service.get_entity_relationships(entity_name)
-        else:
-            self.logger.warning("Entity relationship lookup not available for current database configuration")
-            return []
-    
-    def get_all_domains(self) -> List[str]:
-        """
-        Get all unique domains from entity metadata.
-        
-        Returns:
-            List of unique domain names
-        """
-        if self.db_client.json_kg_service:
-            return self.db_client.json_kg_service.get_all_domains()
-        else:
-            self.logger.warning("Domain lookup not available for current database configuration")
-            return []
     
     def get_all_document_ids(self) -> List[str]:
         """
@@ -509,73 +425,9 @@ class KnowledgeGraphClient:
         else:
             self.logger.warning("Document ID lookup not available for current database configuration")
             return []
-    
-    def get_domains_by_document(self) -> Dict[str, List[str]]:
-        """
-        Get domains organized by document ID.
-        
-        Returns:
-            Dictionary mapping document IDs to lists of domains
-        """
-        if self.db_client.json_kg_service:
-            return self.db_client.json_kg_service.get_domains_by_document()
-        else:
-            self.logger.warning("Document domain lookup not available for current database configuration")
-            return {}
-    
-    def get_knowledge_graph_summary(self) -> Dict[str, Any]:
-        """
-        Get a comprehensive summary of the knowledge graph including domains and documents.
-        
-        Returns:
-            Dictionary with knowledge graph summary information
-        """
-        if not self.db_client.json_kg_service:
-            return {"error": "Knowledge graph service not available"}
-        
-        try:
-            # Get basic stats
-            stats = self.db_client.json_kg_service.get_stats()
-            
-            # Get domains and documents
-            domains = self.get_all_domains()
-            document_ids = self.get_all_document_ids()
-            doc_domains = self.get_domains_by_document()
-            
-            # Get document details
-            documents = []
-            for doc_id in document_ids:
-                entities = self.db_client.json_kg_service.get_entities(doc_id)
-                doc_title = "Unknown Document"
-                if entities:
-                    doc_title = entities[0].get('metadata', {}).get('title', 'Unknown Document')
-                
-                documents.append({
-                    'id': doc_id,
-                    'title': doc_title,
-                    'domains': doc_domains.get(doc_id, []),
-                    'entity_count': len(entities)
-                })
-            
-            return {
-                'stats': stats,
-                'domains': domains,
-                'documents': documents,
-                'total_domains': len(domains),
-                'total_documents': len(document_ids)
-            }
-            
-        except Exception as e:
-            self.logger.error(f"Failed to get knowledge graph summary: {e}")
-            return {"error": str(e)}
-    
+
     # Advanced KG Extraction using kggen
-    def extract_knowledge_graph_advanced(
-        self,
-        text: str,
-        context: Optional[str] = None,
-        strategy: str = "detailed"
-    ) -> Dict[str, Any]:
+    def extract_knowledge_graph_with_kggen(self,text: str,context: Optional[str] = None,strategy: str = "detailed") -> Dict[str, Any]:
         """
         Extract knowledge graph using advanced kggen integration.
 
@@ -734,6 +586,3 @@ if __name__ == "__main__":
     document_id = client.add_document(document_path="/Users/mawuliagamah/Downloads/Chapter 1_ Prompt Chaining.pdf", document_id="2", document_type="pdf")
     client.extract_document_ontology(document_id)
     
-
-
-

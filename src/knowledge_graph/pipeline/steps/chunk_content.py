@@ -1,0 +1,75 @@
+"""Step responsible for chunking the cleaned document."""
+
+from __future__ import annotations
+
+import logging
+
+from ..document_pipeline import DocumentPipelineContext, PipelineStep
+from ..utils import Chunker
+
+
+logger = logging.getLogger("knowledgeAgent.pipeline.chunk")
+
+
+def chunk_document(
+    document,
+    *,
+    chunk_size: int,
+    chunk_overlap: int,
+    chunker_type: str,
+):
+    chunker = Chunker(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        chunker_type=chunker_type,
+    )
+
+    logger.debug(
+        "Chunking document %s with size=%d overlap=%d strategy=%s",
+        document.id,
+        chunk_size,
+        chunk_overlap,
+        chunker_type,
+    )
+
+    chunks = chunker.chunk_document(document)
+    chunk_metadatas = chunker.create_chunk_metadata(document, chunks)
+    text_chunks = chunker.reconstruct_document(document, chunks, chunk_metadatas)
+
+    document.textChunks = text_chunks
+    document.is_chunked = True
+
+    logger.debug("Document %s chunked into %d chunks", document.id, len(text_chunks))
+    return document
+
+
+class ChunkContentStep(PipelineStep):
+    """Generate structured chunks and associated metadata."""
+
+    name = "chunk_content"
+
+    def __init__(
+        self,
+        *,
+        chunk_size: int,
+        chunk_overlap: int,
+        chunker_type: str,
+    ) -> None:
+        super().__init__(enabled=True)
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+        self.chunker_type = chunker_type
+
+    def run(self, context: DocumentPipelineContext) -> DocumentPipelineContext:
+        document = context.ensure_document()
+        document = chunk_document(
+            document,
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap,
+            chunker_type=self.chunker_type,
+        )
+        context.set_document(document)
+        context.results[self.name] = {
+            "chunk_count": len(document.textChunks or []),
+        }
+        return context

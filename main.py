@@ -46,9 +46,14 @@ setup_dspy_cache()
 # Add src to Python path to ensure imports work correctly
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-# Import and run the main application
-from src.main import main
-import asyncio
+# Import and run the FastAPI server
+import uvicorn
+from src.application.server.main import app
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8001,
+        reload=False  # Disable reload to avoid import string issues
+    )
