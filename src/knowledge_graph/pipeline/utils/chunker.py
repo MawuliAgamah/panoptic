@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import re
 from typing import Any, List, Optional
+import logging
 
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from ...document.models.chunk import ChunkMetadata, TextChunk
+
+logger = logging.getLogger("knowledgeAgent.pipeline.chunk")
 
 
 class MarkdownSection:
@@ -149,24 +152,24 @@ class StructuredMarkdownChunker:
         return chunks
 
     def chunk_document(self, document: Any) -> List[str]:
-        print(f"Chunking document {document.id} using StructuredMarkdownChunker")
+        logger.info("StructuredMarkdownChunker running for %s", document.id)
 
         if not document.raw_content:
-            print("Warning: Document has no content to chunk")
+            logger.warning("Document %s has no content to chunk", document.id)
             return []
 
         root_sections = self.parse_document(document.raw_content)
-        print(f"Found {len(root_sections)} root sections in document")
+        logger.debug("%s: %d root sections detected", document.id, len(root_sections))
 
         chunks: List[str] = []
         for section in root_sections:
             chunks.extend(self.chunk_section(section, self.chunk_size))
 
-        print(f"Created {len(chunks)} chunks")
+        logger.info("%s: created %d chunks", document.id, len(chunks))
         return chunks
 
     def create_chunk_metadata(self, document: Any, chunks: List[str]) -> List[ChunkMetadata]:
-        print("Creating metadata for chunks")
+        logger.debug("Creating metadata for %d chunks for %s", len(chunks), document.id)
 
         chunk_metadatas: List[ChunkMetadata] = []
         current_position = 0
@@ -209,7 +212,7 @@ class StructuredMarkdownChunker:
             )
             text_chunks.append(chunk)
 
-        print(f"Created {len(text_chunks)} text chunks")
+        logger.debug("%s: reconstructed %d TextChunk objects", document.id, len(text_chunks))
         return text_chunks
 
 
@@ -233,7 +236,7 @@ class Chunker:
 
     def chunk_document(self, document) -> List[str]:
         if not document.raw_content:
-            print("Warning: Document has no content to chunk")
+            logger.warning("Document %s has no content to chunk", document.id)
             return []
 
         use_markdown_chunker = self.chunker_type == "structured_markdown"
@@ -245,10 +248,10 @@ class Chunker:
                 use_markdown_chunker = True
 
         if use_markdown_chunker:
-            print(f"Chunking document {document.id} using structured markdown chunker")
+            logger.info("%s: using structured markdown chunker", document.id)
             return self.structured_markdown_chunker.chunk_document(document)
 
-        print(f"Chunking document {document.id} using standard recursive chunker")
+        logger.info("%s: using recursive text chunker", document.id)
         doc_chunks = self.recursive_character_splitter.split_text(document.raw_content)
         return [chunk.page_content if isinstance(chunk, Document) else chunk for chunk in doc_chunks]
 

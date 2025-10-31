@@ -2,6 +2,27 @@
   <aside class="sidebar">
     <section class="sidebar__section">
       <header class="sidebar__header">
+        <h2 class="sidebar__title">Visible Documents</h2>
+        <p class="sidebar__subtitle">Toggle which documents appear in the graph.</p>
+      </header>
+      <div class="visibility-controls" v-if="documents.length">
+        <div class="visibility-actions">
+          <button class="visibility-btn" type="button" @click="selectAll">Select all</button>
+          <button class="visibility-btn" type="button" @click="clearAll">Clear</button>
+        </div>
+        <ul class="visibility-list">
+          <li v-for="doc in documents" :key="doc.id" class="visibility-item">
+            <label>
+              <input type="checkbox" :checked="isVisible(doc.id)" @change="toggle(doc.id)" />
+              <span class="doc-label">{{ doc.title }}</span>
+            </label>
+          </li>
+        </ul>
+      </div>
+      <div v-else class="sidebar__empty">No documents to filter.</div>
+    </section>
+    <section class="sidebar__section">
+      <header class="sidebar__header">
         <h2 class="sidebar__title">Document Library</h2>
         <p class="sidebar__subtitle">
           Manage Google Drive imports and local uploads. Link documents to nodes via the context menu or details panel.
@@ -80,9 +101,13 @@
             {{ cluster.label }} · {{ cluster.nodeIds.length }} nodes
           </li>
         </ul>
-        <p v-else class="metric-card__note">
-          Communities will appear once the graph has multiple connected components.
-        </p>
+        <p v-else class="metric-card__note">No clusters detected yet.</p>
+        <div class="community-toggle">
+          <label>
+            <input type="checkbox" :checked="showCommunities" @change="toggleCommunities" />
+            Show communities (color by cluster)
+          </label>
+        </div>
       </article>
     </section>
   </aside>
@@ -93,7 +118,24 @@ import { storeToRefs } from 'pinia'
 import { useGraphStore } from '@/stores/graphStore'
 
 const graphStore = useGraphStore()
-const { documents, metrics } = storeToRefs(graphStore)
+const { documents, metrics, visibleDocumentIds, showCommunities } = storeToRefs(graphStore)
+
+function isVisible(id: string) {
+  return visibleDocumentIds.value.has(id)
+}
+function toggle(id: string) {
+  graphStore.toggleDocumentVisibility(id)
+}
+function selectAll() {
+  graphStore.selectAllDocuments()
+}
+function clearAll() {
+  graphStore.clearVisibleDocuments()
+}
+
+function toggleCommunities() {
+  graphStore.toggleShowCommunities()
+}
 
 function handleDeleteDocument(documentId: string) {
   graphStore.deleteDocument(documentId).catch((error) => {
@@ -107,21 +149,66 @@ function handleDeleteDocument(documentId: string) {
   width: 320px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 24px 20px;
-  background: rgba(255, 255, 255, 0.92);
-  border-right: 1px solid rgba(18, 20, 23, 0.06);
+  gap: 20px;
+  padding: 16px 16px 24px 16px;
+  background: #ffffff;
+  border-right: 1px solid rgba(15, 49, 103, 0.12);
+  box-shadow: inset -1px 0 0 rgba(15, 49, 103, 0.04);
   overflow-y: auto;
+  height: 100%;
+  min-height: 0; /* allow internal scrolling in grid */
 }
 
 .sidebar__section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px;
-  background: rgba(246, 248, 253, 0.92);
-  border-radius: 16px;
+  gap: 12px;
+  padding: 12px;
+  background: #fafcff;
+  border-radius: 12px;
   border: 1px solid rgba(15, 49, 103, 0.08);
+}
+
+.visibility-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.visibility-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.visibility-btn {
+  border: 1px solid rgba(15, 49, 103, 0.15);
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f3167;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.visibility-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.visibility-item label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doc-label {
+  color: #0f3167;
+  font-size: 13px;
 }
 
 .sidebar__header {
@@ -131,14 +218,15 @@ function handleDeleteDocument(documentId: string) {
 }
 
 .sidebar__title {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   color: #0f3167;
 }
 
 .sidebar__subtitle {
-  font-size: 13px;
-  color: rgba(18, 20, 23, 0.6);
+  font-size: 12px;
+  color: rgba(18, 20, 23, 0.62);
 }
 
 .sidebar__empty {
@@ -278,6 +366,12 @@ function handleDeleteDocument(documentId: string) {
 .metric-card__note {
   font-size: 12px;
   color: rgba(18, 20, 23, 0.55);
+}
+
+.community-toggle {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #0f3167;
 }
 
 @media (max-width: 1200px) {

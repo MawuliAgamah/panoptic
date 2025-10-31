@@ -36,11 +36,14 @@ import GraphCanvas from '../graph/GraphCanvas.vue'
   gap: 0;
   min-height: 0;
   overflow: hidden;
+  /* Ensure the working area fits in one viewport height below the top nav */
+  height: calc(100vh - var(--topnav-height, 64px));
 }
 
 .dashboard-shell__main {
   display: flex;
   padding: 24px;
+  min-height: 0;
 }
 
 @media (max-width: 1400px) {

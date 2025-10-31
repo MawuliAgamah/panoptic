@@ -1,6 +1,14 @@
 <template>
   <section class="graph-canvas" role="presentation" aria-label="Knowledge graph canvas">
     <div class="graph-canvas__controls">
+      <select class="layout-select" v-model="layoutChoice" @change="runAutoLayout" :disabled="!hasGraph">
+        <option value="auto">Auto</option>
+        <option value="fcose" :disabled="!availableLayouts.fcose">Force (fCoSE)</option>
+        <option value="cose-bilkent" :disabled="!availableLayouts.coseBilkent">Force (CoSE Bilkent)</option>
+        <option value="dagre" :disabled="!availableLayouts.dagre">Hierarchy (Dagre)</option>
+        <option value="breadthfirst">Hierarchy (Breadthfirst)</option>
+        <option value="grid">Grid</option>
+      </select>
       <button type="button" class="graph-control" @click="runAutoLayout" :disabled="!hasGraph">
         Layout
       </button>
@@ -46,7 +54,7 @@ const emit = defineEmits<{
 }>()
 
 const graphStore = useGraphStore()
-const { nodes, edges, selection } = storeToRefs(graphStore)
+const { visibleNodes: nodes, visibleEdges: edges, selection, showCommunities, communityAssignments } = storeToRefs(graphStore)
 
 const containerRef = ref<HTMLDivElement | null>(null)
 let cy: Core | null = null
@@ -54,8 +62,9 @@ let cy: Core | null = null
 const showPlaceholder = computed(() => nodes.value.length === 0)
 const hasGraph = computed(() => nodes.value.length > 0 || edges.value.length > 0)
 
-onMounted(() => {
+onMounted(async () => {
   if (!containerRef.value) return
+  await registerLayouts()
   cy = cytoscape({
     container: containerRef.value,
     boxSelectionEnabled: false,
@@ -95,6 +104,16 @@ watch(
   },
   { deep: true }
 )
+
+watch(showCommunities, () => {
+  if (!cy) return
+  cy.style().update()
+})
+
+watch(communityAssignments, () => {
+  if (!cy) return
+  cy.style().update()
+})
 
 watch(
   selection,
@@ -216,9 +235,109 @@ function syncEdges(graphEdges: typeof edges.value) {
   })
 }
 
+const availableLayouts = ref({ fcose: false, coseBilkent: false, dagre: false })
+const layoutChoice = ref<'auto' | 'fcose' | 'cose-bilkent' | 'dagre' | 'breadthfirst' | 'grid'>('breadthfirst')
+
+async function registerLayouts() {
+  try {
+    const mod = await import(/* @vite-ignore */ 'cytoscape-fcose')
+    // @ts-ignore - plugin default export varies
+    cytoscape.use(mod.default || mod)
+    availableLayouts.value.fcose = true
+  } catch (e) {
+    console.warn('[graph] fcose not available, will fallback')
+  }
+  try {
+    const mod = await import(/* @vite-ignore */ 'cytoscape-cose-bilkent')
+    // @ts-ignore
+    cytoscape.use(mod.default || mod)
+    availableLayouts.value.coseBilkent = true
+  } catch (e) {
+    console.warn('[graph] cose-bilkent not available, will fallback')
+  }
+  try {
+    const mod = await import(/* @vite-ignore */ 'cytoscape-dagre')
+    // @ts-ignore
+    cytoscape.use(mod.default || mod)
+    availableLayouts.value.dagre = true
+  } catch (e) {
+    console.warn('[graph] dagre not available, will fallback')
+  }
+}
+
 function runLayout() {
   if (!cy) return
-  cy.layout({ name: 'cose', animate: false, idealEdgeLength: 120 }).run()
+  let name: string
+  let options: any = { animate: false }
+  const nodeCount = cy.nodes().length
+  const edgeCount = cy.edges().length
+
+  const pickAuto = () => {
+    if (availableLayouts.value.fcose) return 'fcose'
+    if (availableLayouts.value.coseBilkent) return 'cose-bilkent'
+    return 'cose'
+  }
+
+  switch (layoutChoice.value) {
+    case 'fcose':
+      name = availableLayouts.value.fcose ? 'fcose' : pickAuto()
+      options = {
+        name,
+        animate: false,
+        quality: 'default',
+        randomize: true,
+        idealEdgeLength: 150,
+        nodeRepulsion: 4500,
+        gravity: 0.25,
+        componentSpacing: 120
+      }
+      break
+    case 'cose-bilkent':
+      name = availableLayouts.value.coseBilkent ? 'cose-bilkent' : pickAuto()
+      options = {
+        name,
+        animate: false,
+        randomize: true,
+        idealEdgeLength: 150,
+        nodeRepulsion: 4500,
+        gravity: 0.25,
+        nodeDimensionsIncludeLabels: true
+      }
+      break
+    case 'dagre':
+      name = availableLayouts.value.dagre ? 'dagre' : pickAuto()
+      options = {
+        name,
+        animate: false,
+        rankDir: 'LR',
+        nodeSep: 60,
+        edgeSep: 30,
+        rankSep: 120
+      }
+      break
+    case 'breadthfirst':
+      name = 'breadthfirst'
+      options = {
+        name,
+        animate: false,
+        directed: false,
+        circle: false,
+        grid: false,
+        spacingFactor: 1.1,
+        padding: 20
+      }
+      break
+    case 'grid':
+      name = 'grid'
+      options = { name, fit: false, avoidOverlap: true }
+      break
+    case 'auto':
+    default:
+      name = pickAuto()
+      options = { name, animate: false, idealEdgeLength: 140 }
+  }
+
+  cy.layout(options).run()
 }
 
 function runAutoLayout() {
@@ -266,6 +385,12 @@ function graphStyles() {
       }
     },
     {
+      selector: '.faded',
+      style: {
+        opacity: 0.15
+      }
+    },
+    {
       selector: 'node',
       style: {
         label: 'data(label)',
@@ -273,7 +398,7 @@ function graphStyles() {
         'text-valign': 'center',
         'text-halign': 'center',
         color: '#0f3167',
-        'background-color': (ele: NodeSingular) => nodeColor(ele.data('nodeType')),
+        'background-color': (ele: NodeSingular) => nodeFill(ele),
         'border-width': 2,
         'border-color': '#ffffff',
         'border-opacity': 0.9,
@@ -319,7 +444,7 @@ function graphStyles() {
   ] as any
 }
 
-function nodeColor(nodeType: GraphNode['type']) {
+function nodeTypeColor(nodeType: GraphNode['type']) {
   switch (nodeType) {
     case 'person':
       return '#99c1ff'
@@ -334,6 +459,18 @@ function nodeColor(nodeType: GraphNode['type']) {
     default:
       return '#cfd8dc'
   }
+}
+
+const COMMUNITY_PALETTE = ['#6e40aa', '#ff6e54', '#2a9d8f', '#e76f51', '#457b9d', '#f4a261', '#8ab17d', '#e9c46a', '#118ab2', '#ef476f']
+
+function nodeFill(ele: NodeSingular) {
+  if (showCommunities.value) {
+    const id = ele.id()
+    const communityId = communityAssignments.value[id]
+    const color = COMMUNITY_PALETTE[communityId % COMMUNITY_PALETTE.length] || '#cfd8dc'
+    return color
+  }
+  return nodeTypeColor(ele.data('nodeType'))
 }
 </script>
 
@@ -365,6 +502,16 @@ function nodeColor(nodeType: GraphNode['type']) {
   display: flex;
   gap: 8px;
   z-index: 2;
+}
+
+.layout-select {
+  border: 1px solid rgba(15, 49, 103, 0.15);
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f3167;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 8px;
 }
 
 .graph-control {

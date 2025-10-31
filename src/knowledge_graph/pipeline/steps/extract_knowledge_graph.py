@@ -19,9 +19,7 @@ def extract_knowledge_graph_for_document(
     document,
     kg_service,
     *,
-    chunk_size: int,
-    chunk_overlap: int,
-    chunker_type: str,
+    strategy: str,
     chunk_count: Optional[int] = None,
 ):
     if not kg_service:
@@ -37,34 +35,29 @@ def extract_knowledge_graph_for_document(
         document.knowledge_graph = {"entities": set(), "relations": []}
         return document
 
-    use_document_level = document.should_use_document_level_kg()
-    if use_document_level:
+    if strategy == "document":
         result = kg_service.extract_from_document(document)
-    else:
-        if not document.textChunks:
-            chunk_document(
-                document,
-                chunk_size=chunk_size,
-                chunk_overlap=chunk_overlap,
-                chunker_type=chunker_type,
-            )
-
-        chunk_texts = [chunk.content for chunk in document.textChunks if chunk.content.strip()]
-        if chunk_texts:
-            result = kg_service.extract_from_chunks(chunk_texts, document.id)
-            document.knowledge_graph = result
-            document.is_kg_extracted = True
-            document.kg_extracted_at = datetime.now()
-            document.kg_extraction_metadata = {
-                "strategy_used": "chunk-level",
-                "chunk_count": len(chunk_texts),
-                "entity_count": len(result.get("entities", set())),
-                "relation_count": len(result.get("relations", [])),
-            }
-        else:
+    elif strategy == "chunk":
+        chunk_texts = [chunk.content for chunk in (document.textChunks or []) if chunk.content.strip()]
+        if not chunk_texts:
+            logger.warning("Route was 'chunk' but no chunks available for %s", document.id)
             result = {"entities": set(), "relations": []}
-            document.knowledge_graph = result
-            document.is_kg_extracted = True
+        else:
+            result = kg_service.extract_from_chunks(chunk_texts, document.id)
+        document.knowledge_graph = result
+        document.is_kg_extracted = True
+        document.kg_extracted_at = datetime.now()
+        document.kg_extraction_metadata = {
+            "strategy_used": "chunk-level",
+            "chunk_count": len(chunk_texts) if chunk_texts else 0,
+            "entity_count": len(result.get("entities", set())),
+            "relation_count": len(result.get("relations", [])),
+        }
+    else:
+        # Skip route: already handled above, but ensure fields are set
+        result = {"entities": set(), "relations": []}
+        document.knowledge_graph = result
+        document.is_kg_extracted = True
 
     entities = result.get("entities", set())
     relations = result.get("relations", [])
@@ -100,14 +93,15 @@ class ExtractKnowledgeGraphStep(PipelineStep):
             return context
 
         document = context.ensure_document()
+        # Determine route decided earlier
+        route_info = context.results.get("route_document", {})
+        route = route_info.get("route") or ("document" if document.should_use_document_level_kg() else "chunk")
         chunk_summary = context.results.get("chunk_content", {})
         chunk_count = chunk_summary.get("chunk_count")
         document = extract_knowledge_graph_for_document(
             document,
             context.services.kg_service,
-            chunk_size=self.chunk_size,
-            chunk_overlap=self.chunk_overlap,
-            chunker_type=self.chunker_type,
+            strategy=route,
             chunk_count=chunk_count,
         )
         context.set_document(document)
@@ -115,11 +109,7 @@ class ExtractKnowledgeGraphStep(PipelineStep):
         kg = getattr(document, "knowledge_graph", {}) or {}
         entities = kg.get("entities", set())
         relations = kg.get("relations", [])
-        strategy = (
-            "document-level"
-            if document.should_use_document_level_kg()
-            else "chunk-level"
-        )
+        strategy = "document-level" if route == "document" else ("chunk-level" if route == "chunk" else "skip")
         context.results[self.name] = {
             "entity_count": len(entities) if isinstance(entities, (set, list, tuple)) else 0,
             "relation_count": len(relations) if isinstance(relations, (list, tuple, set)) else 0,

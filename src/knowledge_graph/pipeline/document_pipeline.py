@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from ..document.models.document import Document
+from ..core.logging_utils import set_logging_context, clear_logging_context
 
 
 logger = logging.getLogger("knowledgeAgent.pipeline")
@@ -123,33 +125,53 @@ class DocumentPipeline:
         )
         context = DocumentPipelineContext(params=params, services=self.services)
 
+        # Establish a run_id for correlation and inject into logging context
+        run_id = str(uuid.uuid4())
+        set_logging_context(document_id, run_id)
+        context.results["run"] = {"run_id": run_id}
+
         logger.info("Starting document pipeline for %s", document_path)
 
-        for step in self.steps:
-            if not step.should_run(context):
-                logger.debug("Skipping disabled step '%s'", step.name)
-                continue
+        import time
+        try:
+            for step in self.steps:
+                if not step.should_run(context):
+                    logger.debug("Skipping disabled step '%s'", step.name)
+                    continue
 
-            logger.info("→ Running pipeline step '%s'", step.name)
-            try:
-                context = step.run(context)
-            except DocumentPipelineError:
-                # Propagate explicit pipeline errors without wrapping to preserve context.
-                logger.exception("Pipeline step '%s' failed", step.name)
-                raise
-            except Exception as exc:  # pragma: no cover - defensive guard
-                logger.exception("Unexpected error during step '%s': %s", step.name, exc)
-                raise DocumentPipelineError(f"Step '{step.name}' failed") from exc
-            else:
-                summary = context.results.get(step.name)
-                if summary:
-                    logger.info("✓ Step '%s' summary: %s", step.name, summary)
+                logger.info("→ Running pipeline step '%s'", step.name)
+                try:
+                    start_ts = time.time()
+                    context = step.run(context)
+                    elapsed_ms = int((time.time() - start_ts) * 1000)
+                except DocumentPipelineError:
+                    # Propagate explicit pipeline errors without wrapping to preserve context.
+                    logger.exception("Pipeline step '%s' failed", step.name)
+                    raise
+                except Exception as exc:  # pragma: no cover - defensive guard
+                    logger.exception("Unexpected error during step '%s': %s", step.name, exc)
+                    raise DocumentPipelineError(f"Step '{step.name}' failed") from exc
                 else:
-                    logger.info("✓ Step '%s' completed", step.name)
+                    summary = context.results.get(step.name)
+                    if isinstance(summary, dict):
+                        summary["elapsed_ms"] = summary.get("elapsed_ms", 0) or elapsed_ms
+                        context.results[step.name] = summary
+                    if summary:
+                        logger.info("✓ Step '%s' summary: %s", step.name, summary)
+                    else:
+                        logger.info("✓ Step '%s' completed", step.name)
 
-        logger.info(
-            "Document pipeline finished for %s with document id %s",
-            document_path,
-            context.document.id if context.document else "unknown",
-        )
-        return context.document
+            # Report route decision if available
+            route_info = context.results.get("route_document", {})
+            if route_info:
+                logger.info("Routing: %s", route_info)
+
+            logger.info(
+                "Document pipeline finished for %s with document id %s",
+                document_path,
+                context.document.id if context.document else "unknown",
+            )
+            return context.document
+        finally:
+            # Clear correlation context to avoid leaking across runs
+            clear_logging_context()

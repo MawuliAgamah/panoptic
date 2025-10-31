@@ -10,7 +10,7 @@ import type {
   NodeCreationPayload,
   Triple
 } from '@/types/graph'
-import { calculateGraphMetrics } from '@/utils/graphMetrics'
+import { calculateGraphMetrics, computeNodeMetrics, detectCommunitiesLPA } from '@/utils/graphMetrics'
 import {
   fetchGraphSnapshot,
   saveGraphSnapshot,
@@ -55,6 +55,8 @@ export const useGraphStore = defineStore('graph', () => {
   const isLoading = ref(false)
   const lastSavedAt = ref<string | null>(null)
   const errorMessage = ref<string | null>(null)
+  const visibleDocumentIds = ref<Set<string>>(new Set())
+  const showCommunities = ref(false)
 
   const selectedNode = computed(() =>
     nodes.value.find((node) => node.id === selection.value.nodeId) ?? null
@@ -62,6 +64,44 @@ export const useGraphStore = defineStore('graph', () => {
   const selectedEdge = computed(() =>
     edges.value.find((edge) => edge.id === selection.value.edgeId) ?? null
   )
+
+  const hasDocumentFilter = computed(() => visibleDocumentIds.value.size > 0)
+
+  const visibleEdges = computed(() => {
+    // If no filter is active, show all edges
+    if (visibleDocumentIds.value.size === 0) return edges.value
+    const selected = visibleDocumentIds.value
+    // Keep edges whose sourceDocumentId is selected, or whose endpoint nodes are associated with selected docs
+    const nodeHasVisibleDoc = (nodeId: string) => {
+      const node = nodes.value.find((n) => n.id === nodeId)
+      if (!node) return false
+      return node.documents?.some((d) => selected.has(d)) ?? false
+    }
+    return edges.value.filter((e) => {
+      if (e.sourceDocumentId && selected.has(e.sourceDocumentId)) return true
+      return nodeHasVisibleDoc(e.source) || nodeHasVisibleDoc(e.target)
+    })
+  })
+
+  const visibleNodes = computed(() => {
+    if (visibleDocumentIds.value.size === 0) return nodes.value
+    const selected = visibleDocumentIds.value
+    const incidentIds = new Set<string>()
+    visibleEdges.value.forEach((e) => {
+      incidentIds.add(e.source)
+      incidentIds.add(e.target)
+    })
+    return nodes.value.filter((n) => {
+      const linked = n.documents?.some((d) => selected.has(d)) ?? false
+      return linked || incidentIds.has(n.id)
+    })
+  })
+
+  // Per-node analytics over the currently visible subgraph
+  const nodeAnalytics = computed(() => computeNodeMetrics(visibleNodes.value, visibleEdges.value))
+
+  // Community assignments (label propagation) over visible subgraph
+  const communityAssignments = computed(() => detectCommunitiesLPA(visibleNodes.value, visibleEdges.value))
 
   function recomputeMetrics() {
     metrics.value = calculateGraphMetrics(nodes.value, edges.value, documents.value)
@@ -302,7 +342,36 @@ export const useGraphStore = defineStore('graph', () => {
     nodes.value = snapshot.nodes
     edges.value = snapshot.edges
     documents.value = snapshot.documents
+    // By default make all documents visible on load
+    visibleDocumentIds.value = new Set(documents.value.map((d) => d.id))
     recomputeMetrics()
+  }
+
+  // Visibility controls
+  function setVisibleDocuments(docIds: string[]) {
+    visibleDocumentIds.value = new Set(docIds)
+  }
+
+  function toggleDocumentVisibility(docId: string) {
+    const next = new Set(visibleDocumentIds.value)
+    if (next.has(docId)) next.delete(docId)
+    else next.add(docId)
+    visibleDocumentIds.value = next
+  }
+
+  function selectAllDocuments() {
+    visibleDocumentIds.value = new Set(documents.value.map((d) => d.id))
+  }
+
+  function clearVisibleDocuments() {
+    visibleDocumentIds.value = new Set()
+  }
+
+  function setShowCommunities(state: boolean) {
+    showCommunities.value = state
+  }
+  function toggleShowCommunities() {
+    showCommunities.value = !showCommunities.value
   }
 
   async function triggerExtraction(nodeId: string, documentId: string) {
@@ -343,6 +412,12 @@ export const useGraphStore = defineStore('graph', () => {
     isLoading,
     lastSavedAt,
     errorMessage,
+    showCommunities,
+    hasDocumentFilter,
+    visibleNodes,
+    visibleEdges,
+    nodeAnalytics,
+    communityAssignments,
     selectedNode,
     selectedEdge,
     addNode,
@@ -361,7 +436,15 @@ export const useGraphStore = defineStore('graph', () => {
     applySnapshot,
     deleteDocument,
     triggerExtraction,
-    setSelection
+    setSelection,
+    // visibility
+    visibleDocumentIds,
+    setVisibleDocuments,
+    toggleDocumentVisibility,
+    selectAllDocuments,
+    clearVisibleDocuments,
+    setShowCommunities,
+    toggleShowCommunities
   }
 })
 

@@ -69,6 +69,32 @@
       </section>
 
       <section class="details-card__section">
+        <header>
+          <h4>Network Analytics</h4>
+        </header>
+        <div v-if="selectedNode">
+          <ul class="metric-list">
+            <li>
+              <span>Degree</span>
+              <strong>{{ nodeAnalytics[selectedNode.id]?.degree ?? 0 }}</strong>
+            </li>
+            <li>
+              <span>PageRank</span>
+              <strong>{{ (nodeAnalytics[selectedNode.id]?.pagerank ?? 0).toFixed(4) }}</strong>
+            </li>
+            <li>
+              <span>Closeness</span>
+              <strong>{{ (nodeAnalytics[selectedNode.id]?.closeness ?? 0).toFixed(4) }}</strong>
+            </li>
+            <li>
+              <span>Community</span>
+              <strong>#{{ communityAssignments[selectedNode.id] ?? '-' }}</strong>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="details-card__section">
         <header class="details-card__section-header">
           <h4>Knowledge Triples</h4>
           <button
@@ -127,7 +153,7 @@ import type { NodeType } from '@/types/graph'
 const NODE_TYPES: NodeType[] = ['person', 'organization', 'concept', 'event', 'location', 'other']
 
 const graphStore = useGraphStore()
-const { selectedNode, selectedEdge, documents, isLoading } = storeToRefs(graphStore)
+const { selectedNode, selectedEdge, documents, isLoading, nodeAnalytics, communityAssignments } = storeToRefs(graphStore)
 
 const editableNode = reactive({
   id: '',
@@ -206,10 +232,13 @@ async function triggerExtraction() {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 24px 20px;
-  background: rgba(255, 255, 255, 0.92);
-  border-left: 1px solid rgba(18, 20, 23, 0.06);
+  padding: 16px 16px 24px 16px;
+  background: #ffffff;
+  border-left: 1px solid rgba(15, 49, 103, 0.12);
+  box-shadow: inset 1px 0 0 rgba(15, 49, 103, 0.04);
   overflow-y: auto;
+  height: 100%;
+  min-height: 0; /* allow internal scrolling in grid */
 }
 
 .details-panel__header {
@@ -230,13 +259,13 @@ async function triggerExtraction() {
 }
 
 .details-card {
-  padding: 18px;
-  border-radius: 16px;
+  padding: 14px;
+  border-radius: 12px;
   border: 1px solid rgba(15, 49, 103, 0.08);
-  background: rgba(246, 248, 253, 0.92);
+  background: #fafcff;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .details-card--empty {
@@ -255,6 +284,26 @@ async function triggerExtraction() {
 .details-card__caption {
   font-size: 13px;
   color: rgba(18, 20, 23, 0.65);
+}
+
+.metric-list {
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+.metric-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border: 1px solid rgba(15, 49, 103, 0.08);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.metric-list strong {
+  color: #0f3167;
 }
 
 .badge {

@@ -90,16 +90,43 @@ class KnowledgeGraphClient:
         self.logger.info("KnowledgeGraphClient initialized successfully")
     
     def _configure_logging(self, log_level: str) -> None:
-        """Configure logging for the client."""
-        self.logger = logging.getLogger("knowledge_graph")
+        """Configure unified logging for the application.
+
+        - Sets a console handler on the root logger with a formatter that includes
+          correlation fields injected by the InjectContextFilter.
+        - Ensures base namespaces ("knowledge_graph", "knowledgeAgent") are set to the
+          configured level and propagate to root so a single handler captures all logs.
+        """
+        from ..core.logging_utils import InjectContextFilter
+
         level = getattr(logging, log_level.upper(), logging.INFO)
-        self.logger.setLevel(level)
-        # Add console handler if not already present
-        if not self.logger.handlers:
+
+        # Root logger configuration (single console handler)
+        root_logger = logging.getLogger()
+        root_logger.setLevel(level)
+
+        # Avoid duplicate handlers
+        if not any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers):
             handler = logging.StreamHandler()
-            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            # Include correlation fields in the log format
+            formatter = logging.Formatter(
+                '%(asctime)s | %(levelname)s | %(name)s | doc=%(doc_id)s run=%(run_id)s | %(message)s'
+            )
             handler.setFormatter(formatter)
-            self.logger.addHandler(handler)
+            handler.addFilter(InjectContextFilter())
+            root_logger.addHandler(handler)
+
+        # Ensure our primary namespaces propagate to root
+        kg_logger = logging.getLogger("knowledge_graph")
+        kg_logger.setLevel(level)
+        kg_logger.propagate = True
+
+        ka_logger = logging.getLogger("knowledgeAgent")
+        ka_logger.setLevel(level)
+        ka_logger.propagate = True
+
+        # Client-specific logger for convenience
+        self.logger = kg_logger
     
     def _setup_cache_directory(self, cache_config: Optional[Union[Dict, str]]) -> str:
         """Set up and validate the cache directory."""

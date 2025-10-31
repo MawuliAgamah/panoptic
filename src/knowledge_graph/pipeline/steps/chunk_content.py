@@ -61,6 +61,14 @@ class ChunkContentStep(PipelineStep):
         self.chunker_type = chunker_type
 
     def run(self, context: DocumentPipelineContext) -> DocumentPipelineContext:
+        # Only run when routing decided to use chunk-level processing
+        route_info = context.results.get("route_document", {})
+        route = route_info.get("route")
+        if route != "chunk":
+            logger.debug("Skipping chunking for route '%s'", route or "unknown")
+            context.results[self.name] = {"chunk_count": 0, "skipped": True}
+            return context
+
         document = context.ensure_document()
         document = chunk_document(
             document,

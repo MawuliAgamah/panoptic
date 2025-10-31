@@ -4,11 +4,19 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Dict, Type
+import logging
 
 try:  # Optional dependency for PDF parsing
     import PyPDF2  # type: ignore
 except ImportError:  # pragma: no cover - optional dependency
     PyPDF2 = None
+
+try:  # Optional dependency for DOCX parsing
+    import docx  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency
+    docx = None
+
+logger = logging.getLogger("knowledgeAgent.pipeline.parser")
 
 
 class DocumentParser(ABC):
@@ -25,7 +33,7 @@ class DefaultParser(DocumentParser):
 
     def parse(self, file_path: str) -> str:
         """Return empty content for unsupported types."""
-        print(f"Using default parser for {file_path}")
+        logger.warning("Using default parser for unsupported file: %s", file_path)
         return ""
 
 
@@ -36,10 +44,10 @@ class TextParser(DocumentParser):
         try:
             with open(file_path, "r", encoding="utf-8") as file:
                 content = file.read()
-            print(f"Text file parsed: {len(content)} chars")
+            logger.debug("Parsed text file %s: %d chars", file_path, len(content))
             return content
         except Exception as exc:
-            print(f"Error parsing text file {file_path}: {exc}")
+            logger.error("Error parsing text file %s: %s", file_path, exc)
             return ""
 
 
@@ -50,10 +58,27 @@ class MarkdownParser(DocumentParser):
         try:
             with open(file_path, "r", encoding="utf-8") as file:
                 content = file.read()
-            print(f"Markdown file parsed: {len(content)} chars")
+            logger.debug("Parsed markdown file %s: %d chars", file_path, len(content))
             return content
         except Exception as exc:
-            print(f"Error parsing markdown file {file_path}: {exc}")
+            logger.error("Error parsing markdown file %s: %s", file_path, exc)
+            return ""
+
+class DocxParser(DocumentParser):
+    """Parser for Microsoft Word .docx files using python-docx."""
+
+    def parse(self, file_path: str) -> str:
+        if docx is None:  # pragma: no cover - optional
+            logger.warning("python-docx not installed; cannot parse DOCX: %s", file_path)
+            return ""
+        try:
+            document = docx.Document(file_path)
+            paragraphs = [p.text for p in document.paragraphs]
+            content = "\n".join(p for p in paragraphs if p is not None)
+            logger.debug("Parsed DOCX file %s: %d chars", file_path, len(content))
+            return content
+        except Exception as exc:
+            logger.error("Error parsing DOCX file %s: %s", file_path, exc)
             return ""
 
 
@@ -77,15 +102,24 @@ class ParserFactory:
                     with open(file_path, "rb") as pdf_file:
                         reader = PyPDF2.PdfReader(pdf_file)
                         pages = [page.extract_text() or "" for page in reader.pages]
-                    print(f"PDF file parsed: {len(pages)} pages")
+                    logger.debug("Parsed PDF file %s: %d pages", file_path, len(pages))
                     return "\n".join(pages)
                 except Exception as exc:  # pragma: no cover - depends on PyPDF2 internals
-                    print(f"Error parsing PDF file {file_path}: {exc}")
+                    logger.error("Error parsing PDF file %s: %s", file_path, exc)
                     return ""
 
         _parsers.update({
             "pdf": PDFParser,
             ".pdf": PDFParser,
+        })
+
+    # Register DOCX parser if available
+    if docx is not None:
+        _parsers.update({
+            "docx": DocxParser,
+            ".docx": DocxParser,
+            "doc": DocxParser,
+            ".doc": DocxParser,
         })
 
     @classmethod
@@ -95,7 +129,7 @@ class ParserFactory:
         parser_class = cls._parsers.get(doc_type)
 
         if not parser_class:
-            print(f"No parser found for {document_type}, using default parser")
+            logger.info("No specific parser for '%s'; using default parser", document_type)
             parser_class = DefaultParser
 
         return parser_class()

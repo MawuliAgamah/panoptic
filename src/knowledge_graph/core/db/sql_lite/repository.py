@@ -3,10 +3,9 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from datetime import datetime
-from rich.console import Console
 import json
 import uuid
-console = Console()
+import logging
 from .queries import (
     CREATE_DOCUMENT_TABLE,
     CREATE_CHUNK_TABLE,
@@ -27,6 +26,8 @@ from .queries import (
     GET_RELATIONSHIPS_BY_CHUNK
 )
 
+logger = logging.getLogger(__name__)
+
 
 class SqlLiteRepository:
     """Handles SQL operations for documents and chunks"""
@@ -40,7 +41,7 @@ class SqlLiteRepository:
         # Ensure directory exists
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self.db_path = str(db_path)
-        console.print(f"[bold blue]Using database at: {self.db_path}[/bold blue]")
+        logger.info("Using database at: %s", self.db_path)
         self._initialize_database()
 
     def _initialize_database(self):
@@ -54,9 +55,9 @@ class SqlLiteRepository:
                 cursor.execute(CREATE_RELATIONSHIP_TABLE)
                 cursor.execute(CREATE_DOCUMENT_ONTOLOGY_TABLE)
                 conn.commit()
-                console.print("[bold green]✓[/bold green] Database initialized successfully")
+                logger.info("Database initialized successfully")
         except Exception as e:
-            console.print(f"[red]Error initializing database: {e}[/red]")
+            logger.error("Error initializing database: %s", e)
             raise
 
     def doc_exists(self, document_id: str) -> bool:  
@@ -76,7 +77,7 @@ class SqlLiteRepository:
                     
                 return result is not None
         except Exception as e:
-            console.print(f"[red]Error checking if document exists: {e}[/red]")
+            logger.error("Error checking if document exists: %s", e)
             return False
 
     def save_document(self, document: Any) -> bool:
@@ -86,8 +87,8 @@ class SqlLiteRepository:
             
             # Debug information
             self._print_debug_info(document, timestamp)
-            console.print(f"[yellow]Attempting to save document: {document.file_path}[/yellow]")
-            console.print(f"[blue]Using database at: {self.db_path}[/blue]")
+            logger.info("Attempting to save document: %s", document.file_path)
+            logger.debug("Database path: %s", self.db_path)
 
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -95,7 +96,7 @@ class SqlLiteRepository:
                 try:
                     # Start transaction
                     cursor.execute("BEGIN TRANSACTION")
-                    console.print("[yellow]Started database transaction[/yellow]")
+                    logger.debug("Started database transaction")
                     
                     # Save document and get its ID
                     doc_values = (
@@ -112,19 +113,19 @@ class SqlLiteRepository:
                         timestamp
                     )
                     
-                    console.print(f"[yellow]Saving document with values: {doc_values}[/yellow]")
+                    logger.debug("Saving document with values: %s", doc_values)
                     cursor.execute(SAVE_DOCUMENT, doc_values)
                     document_id = cursor.fetchone()[0]  # Get the returned ID
-                    console.print(f"[green]Saved document with ID: {document_id}[/green]")
+                    logger.info("Saved document with ID: %s", document_id)
                     
                     # Delete existing chunks for this document
                     cursor.execute("DELETE FROM chunks WHERE document_id = ?", (document_id,))
-                    console.print(f"[yellow]Deleted existing chunks for document {document_id}[/yellow]")
+                    logger.debug("Deleted existing chunks for document %s", document_id)
                     
                     # Save chunks
                     chunk_ids = []  # Store chunk IDs for linking
                     if hasattr(document, 'textChunks') and document.textChunks:
-                        console.print(f"[yellow]Saving {len(document.textChunks)} chunks[/yellow]")
+                        logger.info("Saving %d chunks", len(document.textChunks))
                         for i, chunk in enumerate(document.textChunks):
                             chunk_values = (
                                 document_id,
@@ -140,16 +141,16 @@ class SqlLiteRepository:
                                 None,  # previous_chunk_id - will be updated
                                 None   # next_chunk_id - will be updated
                             )
-                            console.print(f"[yellow]Saving chunk {i} with values: {chunk_values}[/yellow]")
+                            logger.debug("Saving chunk %d with values: %s", i, chunk_values)
                             cursor.execute(SAVE_CHUNK, chunk_values)
                             chunk_ids.append(cursor.lastrowid)
-                            console.print(f"[green]Saved chunk with ID: {cursor.lastrowid}[/green]")
+                            logger.debug("Saved chunk with ID: %s", cursor.lastrowid)
                     else:
-                        console.print("[red]No chunks found in document[/red]")
+                        logger.warning("No chunks found in document")
                     
                     # Update chunk links
                     if len(chunk_ids) > 1:
-                        console.print("[yellow]Updating chunk links[/yellow]")
+                        logger.debug("Updating chunk links")
                         for i, chunk_id in enumerate(chunk_ids):
                             prev_id = chunk_ids[i-1] if i > 0 else None
                             next_id = chunk_ids[i+1] if i < len(chunk_ids)-1 else None
@@ -165,20 +166,20 @@ class SqlLiteRepository:
 
                     # Commit transaction
                     conn.commit()
-                    console.print(f"[bold green]✓[/bold green] Document, chunks, and KG saved successfully")
+                    logger.info("Document, chunks, and KG saved successfully")
                     return True
                     
                 except Exception as e:
                     # Rollback on error
                     conn.rollback()
-                    console.print(f"[red]Error during save, rolling back: {e}[/red]")
+                    logger.error("Error during save, rolling back: %s", e)
                     raise e
                 
         except sqlite3.Error as e:
-            console.print(f"[red]SQLite error: {str(e)}[/red]")
+            logger.error("SQLite error: %s", str(e))
             raise
         except Exception as e:
-            console.print(f"[red]Unexpected error: {str(e)}[/red]")
+            logger.error("Unexpected error: %s", str(e))
             raise
 
     def retrieve_document(self, document_id: str) -> Optional[Dict]:
@@ -201,7 +202,7 @@ class SqlLiteRepository:
                     chunk_data = cursor.fetchall()
                 else:
                     # Fall back to using file_path for older schema
-                    console.print("[yellow]Warning: Using legacy schema without document_id column[/yellow]")
+                    logger.warning("Using legacy schema without document_id column")
                     cursor.execute("SELECT * FROM documents WHERE file_path = ?", (document_id,))
                     document_data = cursor.fetchall()
                     if document_data:
@@ -214,7 +215,7 @@ class SqlLiteRepository:
                 return data
                 
         except Exception as e:
-            console.print(f"[red]Error retrieving document: {e}[/red]")
+            logger.error("Error retrieving document: %s", e)
             return None
         
     def delete_document(self, document_id: str) -> bool:
@@ -230,21 +231,21 @@ class SqlLiteRepository:
             cursor.execute("DELETE FROM relationships WHERE document_id = ?", (document_id,))
             cursor.execute("DELETE FROM entities WHERE document_id = ?", (document_id,))
             cursor.execute("DELETE FROM chunks WHERE document_id = ?", (document_id,))
-            console.print(f"[yellow]Deleted KG rows and chunks for document {document_id}[/yellow]")
+            logger.info("Deleted KG rows and chunks for document %s", document_id)
                 
             # Then delete the document
             cursor.execute("DELETE FROM documents WHERE document_id = ?", (document_id,))
                 
             # Commit changes
             conn.commit()
-            console.print(f"[bold green]✓[/bold green] Document and all associated chunks deleted with ID: {document_id}")
+            logger.info("Document and all associated chunks deleted with ID: %s", document_id)
             return True
                 
         except Exception as e:
             # Rollback on error
             if conn:
                 conn.rollback()
-            console.print(f"[red]Error deleting document: {e}[/red]")
+            logger.error("Error deleting document: %s", e)
             return False
         finally:
             # Close connection if it was opened
@@ -255,7 +256,7 @@ class SqlLiteRepository:
         """Persist entities and relationships for a document using an open cursor."""
         cursor.execute("DELETE FROM relationships WHERE document_id = ?", (document_id,))
         cursor.execute("DELETE FROM entities WHERE document_id = ?", (document_id,))
-        console.print(f"[yellow]Deleted previous KG entries for document {document_id}[/yellow]")
+        logger.debug("Deleted previous KG entries for document %s", document_id)
 
         entities = kg_data.get("entities") or []
         relations = kg_data.get("relations") or []
@@ -331,12 +332,12 @@ class SqlLiteRepository:
             cursor.execute("BEGIN TRANSACTION")
             self._write_knowledge_graph(cursor, document_id, kg_data or {})
             conn.commit()
-            console.print(f"[bold green]✓[/bold green] Knowledge graph saved for document {document_id}")
+            logger.info("Knowledge graph saved for document %s", document_id)
             return True
         except Exception as exc:
             if conn:
                 conn.rollback()
-            console.print(f"[red]Error saving knowledge graph for {document_id}: {exc}[/red]")
+            logger.error("Error saving knowledge graph for %s: %s", document_id, exc)
             return False
         finally:
             if conn:
@@ -352,16 +353,16 @@ class SqlLiteRepository:
                 cursor = conn.cursor()
                 cursor.execute(SAVE_DOCUMENT_ONTOLOGY, (document_id, ontology_json))
                 conn.commit()
-                console.print(f"[green]Saved ontology for document: {document_id}[/green]")
+                logger.info("Saved ontology for document: %s", document_id)
                 return True
         except Exception as e:
-            console.print(f"[red]Error saving document ontology: {e}[/red]")
+            logger.error("Error saving document ontology: %s", e)
             return False
                 
     def save_entities_and_relationships(self, document_id: str, chunk_id: Optional[int], ontology: Any) -> bool:
         """Save entities and relationships extracted from ontology"""
         try:
-            console.print(f"[yellow]Saving ontology for document: {document_id}[/yellow]")
+            logger.info("Saving ontology for document: %s", document_id)
             
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -369,7 +370,7 @@ class SqlLiteRepository:
                 try:
                     # Start transaction
                     cursor.execute("BEGIN TRANSACTION")
-                    console.print("[yellow]Started ontology transaction[/yellow]")
+                    logger.debug("Started ontology transaction")
                     
                     # Process entities
                     entity_ids = {}  # Map entity names to IDs for relationship creation
@@ -381,7 +382,7 @@ class SqlLiteRepository:
                     else:
                         entities = []
                     
-                    console.print(f"[yellow]Processing {len(entities)} entities[/yellow]")
+                    logger.debug("Processing %d entities", len(entities))
                     
                     for entity in entities:
                         # Extract entity data
@@ -407,7 +408,7 @@ class SqlLiteRepository:
                             document_id,
                             chunk_id
                         ))
-                        console.print(f"[green]Saved entity: {name} ({entity_type}/{category})[/green]")
+                        logger.debug("Saved entity: %s (%s/%s)", name, entity_type, category)
                     
                     # Process relationships
                     relationships = []
@@ -418,7 +419,7 @@ class SqlLiteRepository:
                     elif hasattr(ontology, 'relationships'):
                         relationships = ontology.relationships
                     
-                    console.print(f"[yellow]Processing {len(relationships)} relationships[/yellow]")
+                    logger.debug("Processing %d relationships", len(relationships))
                     
                     for relationship in relationships:
                         # Extract relationship data
@@ -439,7 +440,7 @@ class SqlLiteRepository:
                         
                         # Skip if either entity doesn't exist
                         if not source_entity_id or not target_entity_id:
-                            console.print(f"[red]Skipping relationship: {source} → {relation} → {target} (missing entity)[/red]")
+                            logger.warning("Skipping relationship: %s → %s → %s (missing entity)", source, relation, target)
                             continue
                         
                         # Generate unique ID for relationship
@@ -455,21 +456,21 @@ class SqlLiteRepository:
                             document_id,
                             chunk_id
                         ))
-                        console.print(f"[green]Saved relationship: {source} → {relation} → {target}[/green]")
+                        logger.debug("Saved relationship: %s → %s → %s", source, relation, target)
                     
                     # Commit transaction
                     conn.commit()
-                    console.print("[bold green]✓[/bold green] Ontology saved successfully")
+                    logger.info("Ontology saved successfully")
                     return True
                     
                 except Exception as e:
                     # Rollback on error
                     conn.rollback()
-                    console.print(f"[red]Error saving ontology: {e}[/red]")
+                    logger.error("Error saving ontology: %s", e)
                     return False
                 
         except Exception as e:
-            console.print(f"[red]Error connecting to database: {e}[/red]")
+            logger.error("Error connecting to database: %s", e)
             return False
 
     def get_document_ontology(self, document_id: str) -> Dict:
@@ -526,7 +527,7 @@ class SqlLiteRepository:
                 }
                 
         except Exception as e:
-            console.print(f"[red]Error retrieving ontology: {e}[/red]")
+            logger.error("Error retrieving ontology: %s", e)
             return {'entities': [], 'relationships': []}
 
     def get_graph_snapshot(self, document_id: Optional[str] = None) -> Dict[str, Any]:
@@ -621,7 +622,7 @@ class SqlLiteRepository:
                 return snapshot
 
         except Exception as exc:
-            console.print(f"[red]Error building graph snapshot: {exc}[/red]")
+            logger.error("Error building graph snapshot: %s", exc)
             return snapshot
 
     def get_chunk_ontology(self, chunk_id: int) -> Dict:
@@ -678,32 +679,25 @@ class SqlLiteRepository:
                 }
                 
         except Exception as e:
-            console.print(f"[red]Error retrieving chunk ontology: {e}[/red]")
+            logger.error("Error retrieving chunk ontology: %s", e)
             return {'entities': [], 'relationships': []}
 
     def _print_debug_info(self, document: Any, timestamp: datetime) -> None:
-        """Print debug information about the document"""
-        from rich.table import Table
-        
-        table = Table(title="--Debug - Saving Document", show_header=True)
-        table.add_column("Field", style="cyan")
-        table.add_column("Value", style="magenta")
-        table.add_column("Type", style="green")
-        
-        # Document info
-        table.add_row("Path", repr(document.file_path), str(type(document.file_path)))
-        table.add_row("Type", repr(document.file_type), str(type(document.file_type)))
-        table.add_row("Title", repr(document.title), str(type(document.title)))
-        table.add_row("Chunks", str(len(document.textChunks)), str(type(document.textChunks)))
-        
-        # Timestamps
-        table.add_row("Created At", str(timestamp), str(type(timestamp)))
-        table.add_row("Updated At", str(timestamp), str(type(timestamp)))
-        table.add_row("Last Modified", str(timestamp), str(type(timestamp)))
-        
-        console.print()
-        console.print(table)
-        console.print()
+        """Log debug information about the document"""
+        try:
+            info = {
+                "path": repr(getattr(document, 'file_path', '')),
+                "type": repr(getattr(document, 'file_type', '')),
+                "title": repr(getattr(document, 'title', '')),
+                "chunks": len(getattr(document, 'textChunks', []) or []),
+                "created_at": str(timestamp),
+                "updated_at": str(timestamp),
+                "last_modified": str(timestamp),
+            }
+            logger.debug("-- Debug - Saving Document: %s", info)
+        except Exception:
+            # Defensive: avoid logging failures impacting main flow
+            logger.debug("-- Debug - Saving Document: <unavailable>")
 
     def query(self, query: str, params: Optional[tuple] = None) -> List[tuple]:
         """Execute a custom query"""
@@ -717,5 +711,5 @@ class SqlLiteRepository:
                 results = cursor.fetchall()
                 return results
         except Exception as e:
-            console.print(f"[red]Error executing query: {e}[/red]")
+            logger.error("Error executing query: %s", e)
             raise
