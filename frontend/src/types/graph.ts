@@ -22,7 +22,7 @@ export interface GraphNode {
   type: NodeType
   description?: string
   provenance?: string
-  position?: { x: number; y: number }
+  position?: { x: number; y: number; z?: number }
   documents: string[]
   triples: Triple[]
   createdAt: string

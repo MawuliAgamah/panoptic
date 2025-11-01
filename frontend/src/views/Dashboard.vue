@@ -1,8 +1,23 @@
 <template>
   <DashboardShell>
     <template #default>
+      <div class="graph-mode-toolbar">
+        <label>
+          View:
+          <select v-model="mode">
+            <option value="2d">2D</option>
+            <option value="3d">3D</option>
+          </select>
+        </label>
+      </div>
+
       <GraphCanvas
+        v-if="mode === '2d'"
         @request-node-create="handleNodeCreateRequest"
+        @request-node-context="handleNodeContextRequest"
+      />
+      <GraphCanvas3D
+        v-else
         @request-node-context="handleNodeContextRequest"
       />
     </template>
@@ -27,6 +42,7 @@ import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import DashboardShell from '@/components/layout/DashboardShell.vue'
 import GraphCanvas from '@/components/graph/GraphCanvas.vue'
+import GraphCanvas3D from '@/components/graph/GraphCanvas3D.vue'
 import NodeFormDialog from '@/components/graph/NodeFormDialog.vue'
 import NodeContextMenu from '@/components/graph/NodeContextMenu.vue'
 import { useGraphStore } from '@/stores/graphStore'
@@ -36,6 +52,7 @@ const { nodes } = storeToRefs(graphStore)
 
 const isNodeDialogOpen = ref(false)
 const pendingPosition = ref<{ x: number; y: number } | null>(null)
+const mode = ref<'2d' | '3d'>('3d')
 
 const contextMenu = reactive({
   visible: false,
@@ -136,3 +153,21 @@ onUnmounted(() => {
   window.removeEventListener('click', handleGlobalClick)
 })
 </script>
+
+<style scoped>
+.graph-mode-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.graph-mode-toolbar select {
+  border: 1px solid rgba(15, 49, 103, 0.15);
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f3167;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+</style>
