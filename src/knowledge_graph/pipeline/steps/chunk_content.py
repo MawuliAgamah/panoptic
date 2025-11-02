@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from ..document_pipeline import DocumentPipelineContext, PipelineStep
-from ..utils import Chunker
+from ..utils import Chunker, PageLevelChunker
 
 
 logger = logging.getLogger("knowledgeAgent.pipeline.chunk")
@@ -70,19 +70,95 @@ class ChunkContentStep(PipelineStep):
             return context
 
         document = context.ensure_document()
-        document = chunk_document(
-            document,
-            chunk_size=self.chunk_size,
-            chunk_overlap=self.chunk_overlap,
-            chunker_type=self.chunker_type,
+
+        # Determine effective chunker type.
+        effective_chunker_type = self.chunker_type
+        file_type = (getattr(document, "file_type", "") or "").lower()
+
+        # Avoid sending PDFs/DOC/DOCX through the structured markdown chunker.
+        if effective_chunker_type == "structured_markdown" and file_type in {".pdf", "pdf", ".doc", "doc", ".docx", "docx"}:
+            logger.info("%s: overriding chunker_type to 'auto' for file type %s", document.id, file_type)
+            effective_chunker_type = "auto"
+
+        logger.info(
+            "%s: chunking with type=%s size=%d overlap=%d file_type=%s",
+            document.id,
+            effective_chunker_type,
+            self.chunk_size,
+            self.chunk_overlap,
+            file_type,
         )
+
+        # Prefer page-level chunking for PDFs when auto/page_pdf requested
+        used_page_level = False
+        if file_type in {".pdf", "pdf"} and effective_chunker_type in {"auto", "page_pdf"}:
+            used_page_level = True
+            logger.info("%s: using page-level chunker (size=%d overlap=%d)", document.id, self.chunk_size, self.chunk_overlap)
+            plc = PageLevelChunker(self.chunk_size, self.chunk_overlap)
+            texts = plc.chunk_document_by_page(document)
+            metas = plc.create_page_chunk_metadata(document, texts)
+            text_chunks = plc.reconstruct_document(document, texts, metas)
+            document.textChunks = text_chunks
+            document.is_chunked = True
+        else:
+            document = chunk_document(
+                document,
+                chunk_size=self.chunk_size,
+                chunk_overlap=self.chunk_overlap,
+                chunker_type=effective_chunker_type,
+            )
         context.set_document(document)
         chunk_count = len(document.textChunks or [])
-        context.results[self.name] = {
+
+        # Fallback: if no chunks produced, retry with recursive chunker
+        result_summary = {
             "chunk_count": chunk_count,
             "chunk_size": self.chunk_size,
             "chunk_overlap": self.chunk_overlap,
+            "chunker_type": effective_chunker_type,
         }
+        if used_page_level:
+            result_summary["used_page_level"] = True
         if chunk_count == 0:
-            logger.info("No chunks generated for document %s", document.id)
+            logger.warning(
+                "No chunks generated for %s with strategy '%s'; retrying with recursive splitter",
+                document.id,
+                effective_chunker_type,
+            )
+            # Fallback to generic recursive splitter
+            document = chunk_document(
+                document,
+                chunk_size=self.chunk_size,
+                chunk_overlap=self.chunk_overlap,
+                chunker_type="recursive",
+            )
+            context.set_document(document)
+            chunk_count = len(document.textChunks or [])
+            result_summary.update({
+                "chunk_count": chunk_count,
+                "fallback": "recursive",
+            })
+
+        # Log chunk diagnostics
+        if chunk_count > 0:
+            lengths = [len(c.content or "") for c in (document.textChunks or [])]
+            try:
+                avg_len = sum(lengths) // len(lengths)
+                min_len = min(lengths)
+                max_len = max(lengths)
+            except Exception:
+                avg_len = min_len = max_len = 0
+            preview = (document.textChunks[0].content or "")[:200].replace("\n", " ") if document.textChunks else ""
+            logger.info(
+                "%s: chunked into %d chunks (avg=%d min=%d max=%d). first_chunk: '%s'%s",
+                document.id,
+                chunk_count,
+                avg_len,
+                min_len,
+                max_len,
+                preview,
+                "…" if len(preview) == 200 else "",
+            )
+
+        context.results[self.name] = result_summary
         return context

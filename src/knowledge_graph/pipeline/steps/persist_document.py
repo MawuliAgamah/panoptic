@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from ..document_pipeline import DocumentPipelineContext, PipelineStep
 
-
 class PersistDocumentStep(PipelineStep):
     """Write the final document record to the database."""
 

@@ -53,12 +53,17 @@ def clean_document_content(document):
 
     document.clean_content = content.strip()
     document.is_preprocessed = True
-
-    logger.debug(
-        "Cleaned document %s: raw=%d clean=%d wiki_links=%d",
+    raw_len = len(document.raw_content or "")
+    clean_len = len(document.clean_content or "")
+    raw_nl = (document.raw_content or "").count("\n")
+    clean_nl = (document.clean_content or "").count("\n")
+    logger.info(
+        "Cleaned document %s: raw_chars=%d clean_chars=%d raw_nl=%d clean_nl=%d wiki_links=%d",
         document.id,
-        len(document.raw_content or ""),
-        len(document.clean_content or ""),
+        raw_len,
+        clean_len,
+        raw_nl,
+        clean_nl,
         len(wiki_links),
     )
     return document
@@ -77,5 +82,7 @@ class CleanContentStep(PipelineStep):
             "raw_length": len(document.raw_content or ""),
             "clean_length": len(document.clean_content or ""),
             "wiki_links": len(getattr(document, "wiki_links", []) or []),
+            "raw_newlines": (document.raw_content or "").count("\n"),
+            "clean_newlines": (document.clean_content or "").count("\n"),
         }
         return context

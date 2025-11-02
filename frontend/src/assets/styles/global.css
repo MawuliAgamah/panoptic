@@ -1,10 +1,115 @@
 :root {
-  color-scheme: light;
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  background-color: #f5f7fb;
-  color: #121417;
+  /* Theme */
+  color-scheme: dark;
+
+  /* Typography */
+  --font-family-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --line-height: 1.5;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 800;
+  --font-size-11: 11px;
+  --font-size-12: 12px;
+  --font-size-13: 13px;
+  --font-size-14: 14px;
+  --font-size-16: 16px;
+  --font-size-18: 18px;
+  --font-size-20: 20px;
+
+  /* Spacing */
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+
+  /* Radii */
+  --radius-6: 6px;
+  --radius-8: 8px;
+  --radius-10: 10px;
+  --radius-12: 12px;
+  --radius-14: 14px;
+  --radius-18: 18px;
+  --radius-20: 20px;
+  --radius-24: 24px;
+  --radius-pill: 999px;
+
+  /* Z indices */
+  --z-header: 10;
+  --z-overlay: 50;
+  --z-drawer: 70;
+
+  /* Layout */
+  --topnav-height: 64px;
+
+  /* Color primitives */
+  --color-brand-600: #F0F0F0; /* Accent 1 as brand */
+  --color-brand-700: #F0F0F0;
+  --color-accent-1: #A8DADC;  /* light cyan */
+  --color-accent-2: #FFC1CC;  /* soft pink */
+  --color-cta: #B39CD0;       /* lavender for primary buttons */
+  --color-white: #ffffff;
+  --color-neutral-900: #2C2C2C;
+  --color-success-600: #4caf7d;
+  --color-warning-600: #ffb74d;
+  --color-danger-600: #ff6b6b;
+
+  /* Semantic text colors */
+  --text-strong: #E4E4E4;
+  --text: #E4E4E4;
+  --text-muted: rgba(228, 228, 228, 0.7);
+  --text-subtle: rgba(228, 228, 228, 0.5);
+  --text-inverse: #2C2C2C;
+
+  /* Surfaces */
+  --surface-app: #2C2C2C;
+  --surface-1: #2C2C2C;
+  --surface-2: #333333;
+  --surface-muted: #383838;
+  --surface-overlay: rgba(44, 44, 44, 0.96);
+  --surface-scrim: rgba(0, 0, 0, 0.45);
+
+  /* Borders */
+  --border-subtle: rgba(228, 228, 228, 0.08);
+  --border: rgba(228, 228, 228, 0.15);
+  --border-strong: rgba(228, 228, 228, 0.35);
+
+  /* Buttons / actions */
+  --action-bg: var(--color-cta);
+  --action-fg: #2C2C2C;
+  --action-bg-hover: color-mix(in srgb, var(--color-cta) 85%, white);
+  --action-ghost-bg: transparent;
+  --action-ghost-border: var(--border);
+
+  /* Focus and shadows */
+  --focus-ring: 0 0 0 2px color-mix(in srgb, var(--color-accent-1) 40%, transparent);
+  --shadow-1: 0 8px 16px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 12px 20px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 24px 60px rgba(0, 0, 0, 0.6);
+
+  /* Pills and statuses */
+  --pill-bg: rgba(255, 255, 255, 0.08);
+  --pill-fg: var(--color-accent-1);
+  --pill-border: rgba(255, 255, 255, 0.15);
+  --status-processing-bg: color-mix(in srgb, var(--color-warning-600) 20%, transparent);
+  --status-processing-fg: var(--color-warning-600);
+  --status-ready-bg: color-mix(in srgb, var(--color-success-600) 18%, transparent);
+  --status-ready-fg: var(--color-success-600);
+  --status-error-bg: color-mix(in srgb, var(--color-danger-600) 18%, transparent);
+  --status-error-fg: var(--color-danger-600);
+
+  /* Base fallbacks for body */
+  font-family: var(--font-family-sans);
+  line-height: var(--line-height);
+  font-weight: var(--font-weight-regular);
+  background-color: #2C2C2C;
+  color: var(--text);
 }
 
 * {
@@ -18,7 +123,7 @@ body,
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, #f7faff 0%, #eef2f9 100%);
+  background: var(--surface-app);
 }
 
 button {
@@ -37,6 +142,6 @@ button:disabled {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(15, 49, 103, 0.2);
+  background: rgba(228, 228, 228, 0.24);
   border-radius: 5px;
 }

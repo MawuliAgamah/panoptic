@@ -91,7 +91,9 @@ class KGExtractionService:
         text: str,
         context: Optional[str] = None,
         strategy: str = "simple",
-        track_metadata: bool = False
+        track_metadata: bool = False,
+        *,
+        log_label: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Extract knowledge graph from text
@@ -148,7 +150,7 @@ class KGExtractionService:
             relations: List[tuple] = []
         else:
             try:
-                entities, relations = self._kg_gen_extract(text, context, strategy)
+                entities, relations = self._kg_gen_extract(text, context, strategy, log_label=log_label)
             except Exception as e:
                 logger.error(f"kg-gen extraction failed: {e}")
                 entities = set()
@@ -169,7 +171,7 @@ class KGExtractionService:
 
         return result
 
-    def _kg_gen_extract(self, text: str, context: Optional[str], strategy: str) -> tuple[Set[str], List[tuple]]:
+    def _kg_gen_extract(self, text: str, context: Optional[str], strategy: str, *, log_label: Optional[str] = None) -> tuple[Set[str], List[tuple]]:
         """
         Use kg-gen to extract entities and relations - simplified like quickstart
         """
@@ -183,15 +185,39 @@ class KGExtractionService:
                 context=context,  # Pass context directly
             )
             
-            # Extract entities and relations like quickstart
-            entities = set(graph.entities) if hasattr(graph, 'entities') else set()
+            # Normalize entities into a set of string names
+            entities: Set[str] = set()
+            if hasattr(graph, 'entities') and graph.entities:
+                for ent in graph.entities:
+                    # ent may be a string or an object with name/label
+                    try:
+                        name = getattr(ent, 'name', None) or getattr(ent, 'label', None) or (ent if isinstance(ent, str) else str(ent))
+                        name = str(name).strip()
+                        if name:
+                            entities.add(name)
+                    except Exception:
+                        continue
+
+            # Convert relations to tuple format (source, predicate, target)
+            relations: List[tuple] = []
+            if hasattr(graph, 'relations') and graph.relations:
+                for rel in graph.relations:
+                    try:
+                        if isinstance(rel, (list, tuple)) and len(rel) >= 3:
+                            source, predicate, target = rel[:3]
+                        else:
+                            source = getattr(rel, 'source', None) or getattr(rel, 'subject', None)
+                            predicate = getattr(rel, 'relation', None) or getattr(rel, 'predicate', None)
+                            target = getattr(rel, 'target', None) or getattr(rel, 'object', None)
+                        if source and predicate and target:
+                            relations.append((str(source).strip(), str(predicate).strip(), str(target).strip()))
+                    except Exception:
+                        continue
             
-            # Convert relations to tuple format
-            relations = []
-            if hasattr(graph, 'relations'):
-                relations = list(graph.relations)
-            
-            logger.info(f"KG generation complete: {len(entities)} entities, {len(relations)} relations")
+            if log_label:
+                logger.info(f"KG generation complete ({log_label}): {len(entities)} entities, {len(relations)} relations")
+            else:
+                logger.info(f"KG generation complete: {len(entities)} entities, {len(relations)} relations")
             
             return entities, relations
             
@@ -217,7 +243,7 @@ class KGExtractionService:
         context = document.get_kg_extraction_context()
 
         # Extract knowledge graph
-        result = self.extract_from_text(text, context=context, track_metadata=True)
+        result = self.extract_from_text(text, context=context, track_metadata=True, log_label="document")
 
         # Update document with results
         document.knowledge_graph = result
@@ -227,29 +253,46 @@ class KGExtractionService:
 
         return result
 
-    def extract_from_chunks(self, chunks: List[str], document_id: str) -> Dict[str, Any]:
+    def extract_from_chunks(self, chunks: List[Any], document_id: str, contexts: Optional[List[str]] = None) -> Dict[str, Any]:
         """
-        Extract knowledge graph from text chunks and merge results
+        Extract knowledge graph from text chunks and merge results.
+
+        Accepts either:
+        - chunks: List[str] and optional contexts: List[str] of same length
+        - chunks: List[tuple[str, str]] where tuple = (text, context)
 
         Args:
-            chunks: List of text chunks
-            document_id: Document ID for context
+            chunks: List of chunk texts or (text, context) tuples
+            document_id: Document ID for context fallback
+            contexts: Optional list of contexts matching the order of `chunks`
 
         Returns:
             Merged knowledge graph results
         """
         all_entities = set()
-        all_relations = []
+        all_relations: List[tuple] = []
 
-        for i, chunk in enumerate(chunks):
-            if chunk.strip():
-                chunk_result = self.extract_from_text(chunk, context=f"Chunk {i+1} of document {document_id}")
-                all_entities.update(chunk_result['entities'])
-                all_relations.extend(chunk_result['relations'])
+        # Normalize input into list of (text, context)
+        normalized: List[tuple[str, Optional[str]]] = []
+        for idx, item in enumerate(chunks):
+            if isinstance(item, tuple) and len(item) >= 1:
+                text = item[0]
+                ctx = item[1] if len(item) > 1 else None
+            else:
+                text = str(item)
+                ctx = contexts[idx] if contexts and idx < len(contexts) else None
+            normalized.append((text, ctx))
 
-        # Remove duplicate relations
+        total = len(normalized)
+        for i, (chunk_text, ctx) in enumerate(normalized):
+            if not chunk_text or not chunk_text.strip():
+                continue
+            effective_ctx = ctx or f"Chunk {i+1} of document {document_id}"
+            chunk_result = self.extract_from_text(chunk_text, context=effective_ctx, log_label=f"chunk {i+1}/{total}")
+            all_entities.update(chunk_result.get('entities', set()))
+            all_relations.extend(chunk_result.get('relations', []))
+
         unique_relations = list(set(all_relations))
-
         return {
             'entities': all_entities,
             'relations': unique_relations

@@ -101,9 +101,24 @@ class ParserFactory:
                 try:
                     with open(file_path, "rb") as pdf_file:
                         reader = PyPDF2.PdfReader(pdf_file)
-                        pages = [page.extract_text() or "" for page in reader.pages]
-                    logger.debug("Parsed PDF file %s: %d pages", file_path, len(pages))
-                    return "\n".join(pages)
+                        pages = []
+                        for i, page in enumerate(reader.pages):
+                            try:
+                                txt = page.extract_text() or ""
+                            except Exception as e:  # pragma: no cover - depends on PDF content
+                                logger.warning("PDF page %d extract_text failed: %s", i + 1, e)
+                                txt = ""
+                            pages.append(txt)
+                    # Join pages with form-feed so downstream chunkers can split by page reliably
+                    text = "\f".join(pages)
+                    logger.info(
+                        "Parsed PDF %s: pages=%d chars=%d newlines=%d",
+                        file_path,
+                        len(pages),
+                        len(text),
+                        text.count("\n"),
+                    )
+                    return text
                 except Exception as exc:  # pragma: no cover - depends on PyPDF2 internals
                     logger.error("Error parsing PDF file %s: %s", file_path, exc)
                     return ""
@@ -132,6 +147,10 @@ class ParserFactory:
             logger.info("No specific parser for '%s'; using default parser", document_type)
             parser_class = DefaultParser
 
+        try:
+            logger.info("Using %s for type '%s'", parser_class.__name__, document_type)
+        except Exception:
+            pass
         return parser_class()
 
     @classmethod

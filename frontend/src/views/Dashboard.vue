@@ -35,10 +35,12 @@
     :node-label="contextMenu.nodeLabel"
     @action="handleContextMenuAction"
   />
+
+  <DetailsDrawer />
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import DashboardShell from '@/components/layout/DashboardShell.vue'
 import GraphCanvas from '@/components/graph/GraphCanvas.vue'
@@ -46,9 +48,12 @@ import GraphCanvas3D from '@/components/graph/GraphCanvas3D.vue'
 import NodeFormDialog from '@/components/graph/NodeFormDialog.vue'
 import NodeContextMenu from '@/components/graph/NodeContextMenu.vue'
 import { useGraphStore } from '@/stores/graphStore'
+import DetailsDrawer from '@/components/layout/DetailsDrawer.vue'
+import { useUiStore } from '@/stores/uiStore'
 
 const graphStore = useGraphStore()
-const { nodes } = storeToRefs(graphStore)
+const { nodes, selection } = storeToRefs(graphStore)
+const ui = useUiStore()
 
 const isNodeDialogOpen = ref(false)
 const pendingPosition = ref<{ x: number; y: number } | null>(null)
@@ -152,6 +157,12 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('click', handleGlobalClick)
 })
+
+// Open drawer when a node/edge is selected; close when nothing selected
+watch(selection, (sel) => {
+  if (sel.nodeId || sel.edgeId) ui.openDetails()
+  else ui.closeDetails()
+}, { deep: true })
 </script>
 
 <style scoped>

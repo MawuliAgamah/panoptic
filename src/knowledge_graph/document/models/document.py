@@ -26,6 +26,9 @@ class Document:
     # Chunks placeholder - will be filled during preprocessing
     textChunks: List[TextChunk]
 
+    # Page-level content (primarily for PDFs)
+    pages: List[str] = field(default_factory=list)
+
     # Obsidian-specific content
     wiki_links: List[str] = field(default_factory=list)  # Extracted [[links]]
 
@@ -96,4 +99,3 @@ class Document:
             context_parts.append(f"Tags: {', '.join(self.metadata.tags[:3])}")
 
         return " | ".join(context_parts) if context_parts else "Personal knowledge document"
-

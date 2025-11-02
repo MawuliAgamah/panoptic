@@ -38,18 +38,48 @@ def extract_knowledge_graph_for_document(
     if strategy == "document":
         result = kg_service.extract_from_document(document)
     elif strategy == "chunk":
-        chunk_texts = [chunk.content for chunk in (document.textChunks or []) if chunk.content.strip()]
-        if not chunk_texts:
+        chunks = [chunk for chunk in (document.textChunks or []) if (chunk.content or "").strip()]
+        if not chunks:
             logger.warning("Route was 'chunk' but no chunks available for %s", document.id)
             result = {"entities": set(), "relations": []}
         else:
-            result = kg_service.extract_from_chunks(chunk_texts, document.id)
+            # Build per-chunk context using page_number when available
+            texts = [c.content for c in chunks]
+            contexts = []
+            total_pages = getattr(getattr(document, 'metadata', None), 'num_pages', None)
+            from collections import Counter
+            page_counter = Counter()
+            for i, c in enumerate(chunks):
+                page = getattr(c.metadata, 'page_number', None)
+                if page is not None:
+                    page_counter[page] += 1
+                    if total_pages:
+                        ctx = f"Page {page} of {total_pages} | {document.title}"
+                    else:
+                        ctx = f"Page {page} | {document.title}"
+                else:
+                    ctx = f"Chunk {i+1} | {document.title}"
+                contexts.append(ctx)
+
+            # Log a brief context preview and per-page distribution for debugging
+            try:
+                preview_n = min(3, len(contexts))
+                for j in range(preview_n):
+                    logger.info("%s: chunk %d context: %s", document.id, j + 1, contexts[j])
+                if page_counter:
+                    # show up to first 5 pages in sorted order
+                    top_pages = sorted(page_counter.items())[:5]
+                    logger.info("%s: page distribution (first %d): %s", document.id, len(top_pages), top_pages)
+            except Exception:
+                pass
+
+            result = kg_service.extract_from_chunks(texts, document.id, contexts=contexts)
         document.knowledge_graph = result
         document.is_kg_extracted = True
         document.kg_extracted_at = datetime.now()
         document.kg_extraction_metadata = {
             "strategy_used": "chunk-level",
-            "chunk_count": len(chunk_texts) if chunk_texts else 0,
+            "chunk_count": len(chunks) if chunks else 0,
             "entity_count": len(result.get("entities", set())),
             "relation_count": len(result.get("relations", [])),
         }
@@ -98,6 +128,13 @@ class ExtractKnowledgeGraphStep(PipelineStep):
         route = route_info.get("route") or ("document" if document.should_use_document_level_kg() else "chunk")
         chunk_summary = context.results.get("chunk_content", {})
         chunk_count = chunk_summary.get("chunk_count")
+        logger.info(
+            "%s: extracting KG via route='%s' chunks=%s",
+            document.id,
+            route,
+            chunk_count if chunk_count is not None else "?",
+        )
+
         document = extract_knowledge_graph_for_document(
             document,
             context.services.kg_service,

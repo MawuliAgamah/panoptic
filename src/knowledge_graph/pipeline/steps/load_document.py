@@ -52,11 +52,36 @@ def load_document_from_path(document_path: str, document_id: str) -> Document:
     )
 
     parser = ParserFactory.get_parser(document.file_type)
+    parser_name = parser.__class__.__name__
+    logger.info("Parser selected for %s (%s): %s", filename, document.file_type, parser_name)
     raw_content = parser.parse(document.file_path)
     document.raw_content = raw_content
+    
+    # Populate pages for PDFs (and optionally for others as single page)
+    ft = (document.file_type or "").lower()
+    try:
+        if ft in {".pdf", "pdf"}:
+            pages = raw_content.split("\f") if "\f" in (raw_content or "") else [(raw_content or "")]
+            document.pages = pages
+            if document.metadata:
+                document.metadata.num_pages = len(pages)
+        else:
+            # Non-PDFs can be treated as a single 'page' for consistency
+            document.pages = [raw_content or ""]
+            if document.metadata and not getattr(document.metadata, "num_pages", None):
+                document.metadata.num_pages = 1
+    except Exception:
+        # Defensive: do not fail load step if page derivation fails
+        document.pages = [raw_content or ""]
     document.is_parsed = True
 
-    logger.debug("Loaded document %s (%d bytes)", document.id, len(raw_content))
+    nl_count = (raw_content or "").count("\n")
+    logger.info(
+        "Loaded document %s: chars=%d newlines=%d",
+        document.id,
+        len(raw_content or ""),
+        nl_count,
+    )
     return document
 
 

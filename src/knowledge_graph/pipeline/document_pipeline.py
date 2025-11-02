@@ -55,7 +55,9 @@ class DocumentPipelineConfig:
     enable_persistence: bool = True
     chunk_size: int = 1000
     chunk_overlap: int = 200
-    chunker_type: str = "structured_markdown"
+    # auto: chooses structured markdown for .md or when markdown headers are present,
+    # otherwise uses recursive text chunker. Avoids routing PDFs into markdown chunker.
+    chunker_type: str = "auto"
 
 
 @dataclass

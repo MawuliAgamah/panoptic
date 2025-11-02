@@ -29,7 +29,18 @@ class RouteDocumentStep(PipelineStep):
         else:
             route = "document" if document.should_use_document_level_kg() else "chunk"
 
-        context.results[self.name] = {"route": route}
+        # Prefer chunk route for PDFs to enable page-level chunking and provenance
+        try:
+            file_type = (getattr(document, "file_type", "") or "").lower()
+            if file_type in {".pdf", "pdf"} and route != "skip":
+                route = "chunk"
+        except Exception:
+            pass
+
+        context.results[self.name] = {
+            "route": route,
+            "file_type": getattr(document, "file_type", ""),
+            "token_estimate": document.estimate_token_count(),
+        }
         logger.info("Routing decision for %s: %s", document.id, route)
         return context
-

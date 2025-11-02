@@ -8,7 +8,6 @@
           <GraphCanvas />
         </slot>
       </main>
-      <DetailsPanel />
     </div>
   </div>
 </template>
@@ -16,7 +15,6 @@
 <script setup lang="ts">
 import TopNav from './TopNav.vue'
 import Sidebar from './Sidebar.vue'
-import DetailsPanel from './DetailsPanel.vue'
 import GraphCanvas from '../graph/GraphCanvas.vue'
 </script>
 
@@ -32,7 +30,7 @@ import GraphCanvas from '../graph/GraphCanvas.vue'
 .dashboard-shell__body {
   flex: 1;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 0;
   min-height: 0;
   overflow: hidden;
@@ -42,13 +40,14 @@ import GraphCanvas from '../graph/GraphCanvas.vue'
 
 .dashboard-shell__main {
   display: flex;
+  flex-direction: column;
   padding: 24px;
   min-height: 0;
 }
 
 @media (max-width: 1400px) {
   .dashboard-shell__body {
-    grid-template-columns: 300px minmax(0, 1fr) 320px;
+    grid-template-columns: 300px minmax(0, 1fr);
   }
 }
 </style>

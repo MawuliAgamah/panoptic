@@ -44,7 +44,7 @@ class KnowledgeGraphService:
         # Do not persist here; centralize persistence in the pipeline's persistence step
         return result
 
-    def extract_from_chunks(self, chunks: List[str], document_id: str) -> Dict[str, Any]:
+    def extract_from_chunks(self, chunks: List[str], document_id: str, contexts: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Extract knowledge graph from text chunks and merge results.
 
@@ -56,8 +56,7 @@ class KnowledgeGraphService:
             Merged knowledge graph results
         """
         logger.info(f"Extracting knowledge graph from {len(chunks)} chunks for document: {document_id}")
-
-        result = self.kg_extractor.extract_from_chunks(chunks, document_id)
+        result = self.kg_extractor.extract_from_chunks(chunks, document_id, contexts=contexts)
         # Do not persist here; centralize persistence in the pipeline's persistence step
         return result
 

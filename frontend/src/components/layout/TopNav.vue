@@ -197,12 +197,12 @@ async function registerDriveDocuments(documents: GoogleDocMetadata[]) {
   align-items: center;
   justify-content: space-between;
   padding: 16px 32px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--surface-overlay);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(18, 20, 23, 0.08);
+  border-bottom: 1px solid var(--border-subtle);
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: var(--z-header);
 }
 
 .top-nav__brand {
@@ -212,21 +212,21 @@ async function registerDriveDocuments(documents: GoogleDocMetadata[]) {
 }
 
 .top-nav__logo {
-  font-weight: 600;
-  font-size: 18px;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-18);
   letter-spacing: 0.02em;
-  color: #0f3167;
+  color: var(--color-brand-600);
 }
 
 .top-nav__subtitle {
-  font-size: 13px;
-  color: rgba(18, 20, 23, 0.6);
+  font-size: var(--font-size-13);
+  color: var(--text-muted);
 }
 
 .top-nav__actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-12);
 }
 
 .top-nav__file-input {
@@ -235,17 +235,17 @@ async function registerDriveDocuments(documents: GoogleDocMetadata[]) {
 
 .top-nav__button {
   padding: 8px 16px;
-  border-radius: 8px;
-  border: 1px solid rgba(15, 49, 103, 0.2);
-  background: rgba(255, 255, 255, 0.96);
-  color: #0f3167;
-  font-weight: 500;
+  border-radius: var(--radius-8);
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--color-brand-600);
+  font-weight: var(--font-weight-medium);
   transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
 .top-nav__button:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 8px 16px rgba(15, 49, 103, 0.12);
+  box-shadow: var(--shadow-1);
 }
 
 .top-nav__button:disabled {
@@ -254,40 +254,40 @@ async function registerDriveDocuments(documents: GoogleDocMetadata[]) {
 }
 
 .top-nav__button--primary {
-  background: #0f3167;
-  color: #fdfdff;
-  border-color: #0f3167;
+  background: var(--action-bg);
+  color: var(--action-fg);
+  border-color: var(--action-bg);
 }
 
 .top-nav__button--primary:hover:not(:disabled) {
-  box-shadow: 0 12px 20px rgba(15, 49, 103, 0.25);
+  box-shadow: var(--shadow-2);
 }
 
 .top-nav__button--ghost {
-  background: transparent;
+  background: var(--action-ghost-bg);
   border-style: dashed;
 }
 
 .top-nav__status {
-  font-size: 13px;
-  color: rgba(18, 20, 23, 0.6);
+  font-size: var(--font-size-13);
+  color: var(--text-muted);
 }
 
 .top-nav__status-group {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
   text-align: right;
 }
 
 .top-nav__status--busy {
-  color: #0f3167;
-  font-weight: 500;
+  color: var(--color-brand-600);
+  font-weight: var(--font-weight-medium);
 }
 
 .top-nav__status--muted {
-  font-size: 12px;
-  color: rgba(18, 20, 23, 0.45);
+  font-size: var(--font-size-12);
+  color: var(--text-subtle);
 }
 
 @media (max-width: 1280px) {
@@ -296,7 +296,7 @@ async function registerDriveDocuments(documents: GoogleDocMetadata[]) {
   }
 
   .top-nav__actions {
-    gap: 8px;
+    gap: var(--space-8);
   }
 
   .top-nav__button {

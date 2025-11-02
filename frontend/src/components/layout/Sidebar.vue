@@ -3,36 +3,52 @@
     <section class="sidebar__section">
       <header class="sidebar__header">
         <h2 class="sidebar__title">Visible Documents</h2>
+        <div class="sidebar__header-actions">
+          <button class="header-toggle" type="button" @click="collapsedFilters = !collapsedFilters">
+            {{ collapsedFilters ? 'Expand' : 'Collapse' }}
+          </button>
+        </div>
         <p class="sidebar__subtitle">Toggle which documents appear in the graph.</p>
       </header>
-      <div class="visibility-controls" v-if="documents.length">
+      <div v-if="!collapsedFilters && documents.length" class="visibility-controls">
         <div class="visibility-actions">
           <button class="visibility-btn" type="button" @click="selectAll">Select all</button>
           <button class="visibility-btn" type="button" @click="clearAll">Clear</button>
         </div>
         <ul class="visibility-list">
-          <li v-for="doc in documents" :key="doc.id" class="visibility-item">
+          <li v-for="doc in documentsForFilter" :key="doc.id" class="visibility-item">
             <label>
               <input type="checkbox" :checked="isVisible(doc.id)" @change="toggle(doc.id)" />
               <span class="doc-label">{{ doc.title }}</span>
             </label>
           </li>
         </ul>
+        <div v-if="documents.length > filterLimit" class="list-footer">
+          <button class="link-btn" type="button" @click="showAllFilters = !showAllFilters">
+            {{ showAllFilters ? 'Show less' : `Show all (${documents.length})` }}
+          </button>
+        </div>
       </div>
-      <div v-else class="sidebar__empty">No documents to filter.</div>
+      <div v-else-if="!collapsedFilters" class="sidebar__empty">No documents to filter.</div>
     </section>
     <section class="sidebar__section">
       <header class="sidebar__header">
         <h2 class="sidebar__title">Document Library</h2>
+        <div class="sidebar__header-actions">
+          <button class="header-toggle" type="button" @click="collapsedLibrary = !collapsedLibrary">
+            {{ collapsedLibrary ? 'Expand' : 'Collapse' }}
+          </button>
+        </div>
         <p class="sidebar__subtitle">
           Manage Google Drive imports and local uploads. Link documents to nodes via the context menu or details panel.
         </p>
       </header>
-      <div v-if="documents.length === 0" class="sidebar__empty">
+      <div v-if="collapsedLibrary"></div>
+      <div v-else-if="documents.length === 0" class="sidebar__empty">
         No documents yet. Import files to begin building your graph.
       </div>
       <ul v-else class="doc-list">
-        <li v-for="doc in documents" :key="doc.id" class="doc-list__item">
+        <li v-for="doc in documentsPreview" :key="doc.id" class="doc-list__item">
           <div class="doc-list__meta">
             <span class="doc-list__title">{{ doc.title }}</span>
             <span class="doc-list__info">
@@ -51,16 +67,26 @@
           </div>
         </li>
       </ul>
+      <div v-if="!collapsedLibrary && documents.length > libraryLimit" class="list-footer">
+        <button class="link-btn" type="button" @click="showAllLibrary = !showAllLibrary">
+          {{ showAllLibrary ? 'Show less' : `Show all (${documents.length})` }}
+        </button>
+      </div>
     </section>
 
     <section class="sidebar__section">
       <header class="sidebar__header">
         <h2 class="sidebar__title">Network Analytics</h2>
+        <div class="sidebar__header-actions">
+          <button class="header-toggle" type="button" @click="collapsedMetrics = !collapsedMetrics">
+            {{ collapsedMetrics ? 'Expand' : 'Collapse' }}
+          </button>
+        </div>
         <p class="sidebar__subtitle">
           Metrics refresh automatically as you edit the graph.
         </p>
       </header>
-
+      <template v-if="!collapsedMetrics">
       <article class="metric-card">
         <h3 class="metric-card__label">Totals</h3>
         <ul class="metric-card__list">
@@ -109,16 +135,31 @@
           </label>
         </div>
       </article>
+      </template>
     </section>
   </aside>
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useGraphStore } from '@/stores/graphStore'
 
 const graphStore = useGraphStore()
 const { documents, metrics, visibleDocumentIds, showCommunities } = storeToRefs(graphStore)
+
+// Collapsible sections
+const collapsedFilters = ref(false)
+const collapsedLibrary = ref(true)
+const collapsedMetrics = ref(false)
+
+// List limiting to avoid scroll while fitting viewport
+const filterLimit = 6
+const libraryLimit = 5
+const showAllFilters = ref(false)
+const showAllLibrary = ref(false)
+const documentsForFilter = computed(() => (showAllFilters.value ? documents.value : documents.value.slice(0, filterLimit)))
+const documentsPreview = computed(() => (showAllLibrary.value ? documents.value : documents.value.slice(0, libraryLimit)))
 
 function isVisible(id: string) {
   return visibleDocumentIds.value.has(id)
@@ -149,12 +190,12 @@ function handleDeleteDocument(documentId: string) {
   width: 320px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 16px 16px 24px 16px;
-  background: #ffffff;
-  border-right: 1px solid rgba(15, 49, 103, 0.12);
-  box-shadow: inset -1px 0 0 rgba(15, 49, 103, 0.04);
-  overflow-y: auto;
+  gap: var(--space-14);
+  padding: var(--space-14) var(--space-14) 18px var(--space-14);
+  background: var(--surface-1);
+  border-right: 1px solid var(--border);
+  box-shadow: inset -1px 0 0 var(--border-subtle);
+  /* Avoid internal scrolling; content is constrained via limits */
   height: 100%;
   min-height: 0; /* allow internal scrolling in grid */
 }
@@ -162,11 +203,11 @@ function handleDeleteDocument(documentId: string) {
 .sidebar__section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 12px;
-  background: #fafcff;
-  border-radius: 12px;
-  border: 1px solid rgba(15, 49, 103, 0.08);
+  gap: var(--space-10);
+  padding: var(--space-10);
+  background: var(--surface-muted);
+  border-radius: var(--radius-12);
+  border: 1px solid var(--border);
 }
 
 .visibility-controls {
@@ -177,56 +218,48 @@ function handleDeleteDocument(documentId: string) {
 
 .visibility-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-8);
 }
 
-.visibility-btn {
-  border: 1px solid rgba(15, 49, 103, 0.15);
-  background: rgba(255, 255, 255, 0.92);
-  color: #0f3167;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-}
+.visibility-btn { border: 1px solid var(--action-bg); background: var(--action-bg); color: var(--action-fg); font-size: var(--font-size-12); font-weight: var(--font-weight-bold); padding: 4px 10px; border-radius: var(--radius-6); cursor: pointer; }
 
 .visibility-list {
   list-style: none;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 180px;
-  overflow-y: auto;
 }
 
-.visibility-item label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.visibility-item { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-8); padding: 6px 8px; }
+.visibility-item label { display: flex; align-items: center; gap: 8px; width: 100%; overflow: hidden; }
+.visibility-item input { flex: 0 0 auto; }
 
 .doc-label {
-  color: #0f3167;
-  font-size: 13px;
+  color: var(--color-brand-700);
+  font-size: var(--font-size-13);
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar__header {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  position: relative;
 }
 
 .sidebar__title {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-bold);
   letter-spacing: 0.01em;
-  color: #0f3167;
+  color: var(--color-brand-700);
 }
 
 .sidebar__subtitle {
-  font-size: 12px;
-  color: rgba(18, 20, 23, 0.62);
+  font-size: var(--font-size-12);
+  color: var(--text-muted);
 }
 
 .sidebar__empty {
@@ -236,10 +269,10 @@ function handleDeleteDocument(documentId: string) {
   justify-content: center;
   text-align: center;
   padding: 12px;
-  border: 1px dashed rgba(15, 49, 103, 0.12);
-  border-radius: 10px;
-  color: rgba(18, 20, 23, 0.65);
-  font-size: 13px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-10);
+  color: var(--text-muted);
+  font-size: var(--font-size-13);
 }
 
 .doc-list {
@@ -249,15 +282,8 @@ function handleDeleteDocument(documentId: string) {
   gap: 12px;
 }
 
-.doc-list__item {
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(15, 49, 103, 0.08);
-  background: #fff;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
+.doc-list__item { padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-1); display: flex; align-items: center; gap: 12px; transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease; }
+.doc-list__item:hover { border-color: var(--border-strong); box-shadow: var(--shadow-1); transform: translateY(-1px); }
 
 .doc-list__meta {
   display: flex;
@@ -268,8 +294,8 @@ function handleDeleteDocument(documentId: string) {
 }
 
 .doc-list__title {
-  font-weight: 600;
-  color: #0f3167;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-brand-700);
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -277,16 +303,16 @@ function handleDeleteDocument(documentId: string) {
 }
 
 .doc-list__info {
-  font-size: 12px;
-  color: rgba(18, 20, 23, 0.6);
+  font-size: var(--font-size-12);
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .doc-list__description {
-  font-size: 11px;
-  color: rgba(18, 20, 23, 0.55);
+  font-size: var(--font-size-11);
+  color: var(--text-subtle);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -296,83 +322,34 @@ function handleDeleteDocument(documentId: string) {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 6px;
+  gap: var(--space-6);
   flex-shrink: 0;
   min-width: 72px;
 }
 
-.doc-list__status {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
-  color: #0f3167;
-}
+.doc-list__status { font-size: var(--font-size-11); text-transform: uppercase; letter-spacing: 0.05em; font-weight: var(--font-weight-bold); padding: 4px 10px; border-radius: var(--radius-pill); background: var(--pill-bg); color: var(--pill-fg); border: 1px solid var(--pill-border); }
+.doc-list__status[data-status='processing'] { background: var(--status-processing-bg); color: var(--status-processing-fg); }
+.doc-list__status[data-status='ready'] { background: var(--status-ready-bg); color: var(--status-ready-fg); }
+.doc-list__status[data-status='error'] { background: var(--status-error-bg); color: var(--status-error-fg); }
 
-.doc-list__status[data-status='processing'] {
-  color: #ff9800;
-}
+.doc-list__delete { border: 1px solid color-mix(in srgb, var(--color-danger-600) 45%, white); background: var(--surface-1); color: var(--color-danger-600); font-size: var(--font-size-11); text-transform: uppercase; letter-spacing: 0.05em; font-weight: var(--font-weight-bold); cursor: pointer; padding: 4px 10px; border-radius: var(--radius-pill); }
+.doc-list__delete:hover { background: var(--status-error-bg); border-color: color-mix(in srgb, var(--color-danger-600) 70%, white); }
 
-.doc-list__status[data-status='ready'] {
-  color: #1b7b4a;
-}
+.metric-card { padding: 12px 14px; background: var(--surface-1); border-radius: var(--radius-14); border: 1px solid var(--border); display: flex; flex-direction: column; gap: var(--space-8); }
 
-.doc-list__status[data-status='error'] {
-  color: #c62828;
-}
+.metric-card__label { font-size: var(--font-size-14); font-weight: var(--font-weight-bold); color: var(--color-brand-700); }
 
-.doc-list__delete {
-  border: 1px solid rgba(198, 40, 40, 0.2);
-  background: #fff5f5;
-  color: #c62828;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-}
+.metric-card__list { list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--font-size-13); color: var(--text); }
 
-.doc-list__delete:hover {
-  background: rgba(198, 40, 40, 0.1);
-  border-color: rgba(198, 40, 40, 0.35);
-}
+.metric-card__note { font-size: var(--font-size-12); color: var(--text-muted); }
 
-.metric-card {
-  padding: 12px 14px;
-  background: #fff;
-  border-radius: 14px;
-  border: 1px solid rgba(15, 49, 103, 0.08);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+.community-toggle { margin-top: var(--space-8); font-size: var(--font-size-13); color: var(--color-brand-700); }
 
-.metric-card__label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #0f3167;
-}
+.sidebar__header-actions { position: absolute; top: 0; right: 0; }
+.header-toggle { border: 1px solid var(--border-strong); background: var(--surface-1); color: var(--color-brand-700); border-radius: var(--radius-8); font-size: var(--font-size-11); font-weight: var(--font-weight-bold); padding: 4px 8px; cursor: pointer; }
 
-.metric-card__list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-  color: rgba(18, 20, 23, 0.75);
-}
-
-.metric-card__note {
-  font-size: 12px;
-  color: rgba(18, 20, 23, 0.55);
-}
-
-.community-toggle {
-  margin-top: 8px;
-  font-size: 13px;
-  color: #0f3167;
-}
+.link-btn { background: transparent; border: none; color: var(--color-brand-700); font-weight: var(--font-weight-bold); cursor: pointer; padding: 0; text-decoration: underline; }
+.list-footer { display: flex; justify-content: flex-end; margin-top: 6px; }
 
 @media (max-width: 1200px) {
   .sidebar {

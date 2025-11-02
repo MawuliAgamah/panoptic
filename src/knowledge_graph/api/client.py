@@ -215,7 +215,7 @@ class KnowledgeGraphClient:
             enable_persistence=getattr(pipeline_settings, 'enable_persistence', True),
             chunk_size=getattr(pipeline_settings, 'chunk_size', 1000),
             chunk_overlap=getattr(pipeline_settings, 'chunk_overlap', 200),
-            chunker_type=getattr(pipeline_settings, 'chunker_type', 'structured_markdown'),
+            chunker_type=getattr(pipeline_settings, 'chunker_type', 'auto'),
         )
         self.document_service = DocumentService(
             db_client=self.db_client,
@@ -316,7 +316,7 @@ class KnowledgeGraphClient:
                 enable_persistence=False,
                 chunk_size=getattr(pipeline_settings, 'chunk_size', 1000),
                 chunk_overlap=getattr(pipeline_settings, 'chunk_overlap', 200),
-                chunker_type=getattr(pipeline_settings, 'chunker_type', 'structured_markdown'),
+                chunker_type=getattr(pipeline_settings, 'chunker_type', 'auto'),
             )
 
             transient_pipeline = self.document_service.build_pipeline(json_pipeline_config)
