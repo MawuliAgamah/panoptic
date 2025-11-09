@@ -21,6 +21,7 @@ temp/
 build/
 database/
 development/
+docs/
 
 # Python
 __pycache__/

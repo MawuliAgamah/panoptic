@@ -6,6 +6,8 @@ export type DetailsTab = 'inspector' | 'documents'
 export const useUiStore = defineStore('ui', () => {
   const detailsOpen = ref(false)
   const activeTab = ref<DetailsTab>('inspector')
+  // Bottom dataset drawer
+  const dataDrawerOpen = ref(false)
 
   function openDetails(tab?: DetailsTab) {
     if (tab) activeTab.value = tab
@@ -20,6 +22,28 @@ export const useUiStore = defineStore('ui', () => {
     activeTab.value = tab
   }
 
-  return { detailsOpen, activeTab, openDetails, closeDetails, setActiveTab }
-})
+  function openDataDrawer() {
+    dataDrawerOpen.value = true
+  }
 
+  function closeDataDrawer() {
+    dataDrawerOpen.value = false
+  }
+
+  function toggleDataDrawer() {
+    dataDrawerOpen.value = !dataDrawerOpen.value
+  }
+
+  return {
+    detailsOpen,
+    activeTab,
+    openDetails,
+    closeDetails,
+    setActiveTab,
+    // dataset drawer
+    dataDrawerOpen,
+    openDataDrawer,
+    closeDataDrawer,
+    toggleDataDrawer
+  }
+})

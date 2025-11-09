@@ -1,0 +1,123 @@
+{
+  "entities": {
+    "Person": {
+      "description": "Represents an individual",
+      "key": "person_id",
+      "attributes": [
+        {
+          "name": "age",
+          "type": "integer",
+          "description": "Age of the person",
+          "required": true
+        },
+        {
+          "name": "sex",
+          "type": "string",
+          "description": "Gender of the person",
+          "required": true
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "description": "Geographic region of the person",
+          "required": true
+        },
+        {
+          "name": "urban_rural",
+          "type": "string",
+          "description": "Urban or rural residence status",
+          "required": true
+        },
+        {
+          "name": "income",
+          "type": "integer",
+          "description": "Annual income of the person",
+          "required": true
+        },
+        {
+          "name": "education",
+          "type": "string",
+          "description": "Highest level of education attained",
+          "required": true
+        },
+        {
+          "name": "marital_status",
+          "type": "string",
+          "description": "Marital status of the person",
+          "required": true
+        },
+        {
+          "name": "employment_status",
+          "type": "string",
+          "description": "Employment status of the person",
+          "required": true
+        }
+      ]
+    }
+  },
+  "relationships": [
+    {
+      "predicate": "has Education",
+      "source": "Person",
+      "target": "Education",
+      "cardinality": "one_to_one"
+    },
+    {
+      "predicate": "resides in",
+      "source": "Person",
+      "target": "Region",
+      "cardinality": "one_to_one"
+    },
+    {
+      "predicate": "has Marital Status",
+      "source": "Person",
+      "target": "MaritalStatus",
+      "cardinality": "one_to_one"
+    },
+    {
+      "predicate": "has Employment Status",
+      "source": "Person",
+      "target": "EmploymentStatus",
+      "cardinality": "one_to_one"
+    },
+    {
+      "predicate": "has Health Plan",
+      "source": "Person",
+      "target": "HealthPlan",
+      "cardinality": "one_to_one",
+      "description": "Details of the health insurance plan",
+      "constraints": [
+        {
+          "name": "plan_type",
+          "type": "string",
+          "description": "Type of health plan",
+          "required": true
+        },
+        {
+          "name": "network_tier",
+          "type": "string",
+          "description": "Network tier of the plan",
+          "required": true
+        },
+        {
+          "name": "deductible",
+          "type": "integer",
+          "description": "Deductible amount",
+          "required": true
+        },
+        {
+          "name": "copay",
+          "type": "integer",
+          "description": "Co-payment amount",
+          "required": true
+        },
+        {
+          "name": "policy_term_years",
+          "type": "integer",
+          "description": "Policy term in years",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

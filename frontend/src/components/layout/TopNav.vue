@@ -2,7 +2,7 @@
   <header class="top-nav">
     <div class="top-nav__brand">
       <span class="top-nav__logo">KG Extract</span>
-      <span class="top-nav__subtitle">Interactive Knowledge Graph Demo</span>
+      <span class="top-nav__subtitle">Demo</span>
     </div>
 
     <div class="top-nav__actions">
@@ -11,11 +11,29 @@
         type="file"
         class="top-nav__file-input"
         multiple
-        accept=".pdf,.md,.markdown,.doc,.docx,.txt"
+        accept=".pdf,.md,.markdown,.doc,.docx,.txt,.csv"
         @change="handleLocalFileChange"
+      />
+      <input
+        ref="folderInputRef"
+        type="file"
+        class="top-nav__file-input"
+        webkitdirectory
+        directory
+        multiple
+        @change="handleFolderImportChange"
       />
       <button class="top-nav__button" type="button" @click="handleLocalImportClick">
         Import Local Document
+      </button>
+      <button class="top-nav__button" type="button" :disabled="isLoading || isUploading" @click="handleFolderImportClick">
+        Import Folder
+      </button>
+      <button class="top-nav__button" type="button" :disabled="isLoading || isUploading" @click="handleResolveEntities">
+        Resolve Entities
+      </button>
+      <button class="top-nav__button top-nav__button--ghost" type="button" :disabled="isLoading || isUploading" @click="toggleGraphMode">
+        {{ graphMode === 'resolved' ? 'Show Raw' : 'Show Resolved' }}
       </button>
       <button class="top-nav__button top-nav__button--primary" type="button" @click="handleConnectDrive">
         Connect Google Drive
@@ -47,12 +65,13 @@ import {
   type GoogleUser,
   type GoogleDocMetadata
 } from '@/services/googleDrive'
-import { registerRemoteDocument, uploadLocalDocument } from '@/services/backend'
+import { registerRemoteDocument, uploadLocalDocument, uploadLocalDocumentsBulk } from '@/services/backend'
 
 const graphStore = useGraphStore()
-const { isLoading, lastSavedAt } = storeToRefs(graphStore)
+const { isLoading, lastSavedAt, graphMode } = storeToRefs(graphStore)
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const folderInputRef = ref<HTMLInputElement | null>(null)
 const driveUser = ref<GoogleUser | null>(getCurrentGoogleUser())
 const driveError = ref<string | null>(null)
 const isUploading = ref(false)
@@ -102,6 +121,39 @@ async function handleLocalFileChange(event: Event) {
   target.value = ''
 }
 
+function handleFolderImportClick() {
+  folderInputRef.value?.click()
+}
+
+async function handleFolderImportChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const files = target.files
+  if (!files || files.length === 0) return
+
+  // Filter to markdown and CSV files for bulk
+  const allowed = Array.from(files).filter((f) => {
+    const name = f.name.toLowerCase()
+    return name.endsWith('.md') || name.endsWith('.markdown') || name.endsWith('.csv')
+  })
+  if (allowed.length === 0) {
+    console.info('No supported files (.md, .markdown, .csv) found in selected folder')
+    target.value = ''
+    return
+  }
+
+  isUploading.value = true
+  try {
+    const result = await uploadLocalDocumentsBulk(allowed, { domain: 'general' })
+    // Refresh graph after bulk ingest
+    await graphStore.loadGraph()
+    console.info('[bulk] Uploaded folder:', { processed: result.processed, failed: result.failed })
+  } catch (error) {
+    console.error('Bulk folder upload failed', error)
+  }
+  isUploading.value = false
+  target.value = ''
+}
+
 async function handleConnectDrive() {
   try {
     driveError.value = null
@@ -119,6 +171,22 @@ async function handleSaveGraph() {
     await graphStore.saveGraph()
   } catch (error) {
     console.error('Failed to save graph snapshot', error)
+  }
+}
+
+async function handleResolveEntities() {
+  try {
+    await graphStore.runEntityResolution()
+  } catch (error) {
+    console.error('Entity resolution failed', error)
+  }
+}
+
+async function toggleGraphMode() {
+  try {
+    await graphStore.setGraphMode(graphMode.value === 'resolved' ? 'raw' : 'resolved')
+  } catch (error) {
+    console.error('Failed to toggle graph mode', error)
   }
 }
 

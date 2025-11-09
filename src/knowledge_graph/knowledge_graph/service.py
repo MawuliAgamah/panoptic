@@ -12,7 +12,7 @@ class KnowledgeGraphService:
     wrapping the KGExtractionService and providing higher-level KG operations.
     """
 
-    def __init__(self, db_client, llm_service, llm_provider: str = "openai"):
+    def __init__(self, db_client, llm_service, llm_provider: str = "openai", kg_extraction_config: Optional[dict] = None):
         self.db_client = db_client
         self.llm_service = llm_service
 
@@ -21,9 +21,14 @@ class KnowledgeGraphService:
         if hasattr(llm_service, 'config'):
             llm_config = llm_service.config
 
+        # Merge LLM config with optional KG extraction config (for parallelism, etc.)
+        merged_cfg = {**llm_config}
+        if kg_extraction_config:
+            merged_cfg.update(kg_extraction_config)
+
         self.kg_extractor = KGExtractionService(
             llm_provider=llm_provider,
-            **llm_config
+            **merged_cfg
         )
 
         logger.info(f"KnowledgeGraphService initialized with {llm_provider} provider")

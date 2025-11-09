@@ -48,6 +48,54 @@ export async function saveGraphSnapshot(snapshot: GraphSnapshot): Promise<void> 
   }
 }
 
+// Entity Resolution APIs
+export interface ERRunResponse {
+  success: boolean
+  mentions_loaded: number
+  blocks: number
+  canonicals: number
+  mapped_mentions: number
+  edges_upserted: number
+  rel_mentions_inserted: number
+}
+
+export async function runEntityResolution(docIds?: string[]): Promise<ERRunResponse> {
+  if (USE_MOCK_API) {
+    await delay(400)
+    return {
+      success: true,
+      mentions_loaded: 0,
+      blocks: 0,
+      canonicals: 0,
+      mapped_mentions: 0,
+      edges_upserted: 0,
+      rel_mentions_inserted: 0
+    }
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/entity-resolution/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ doc_ids: docIds, mode: 'incremental' })
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to run entity resolution: ${response.status} ${response.statusText}`)
+  }
+  return (await response.json()) as ERRunResponse
+}
+
+export async function fetchResolvedGraphSnapshot(docIds?: string[]): Promise<GraphSnapshot> {
+  if (USE_MOCK_API) {
+    return structuredClone(MOCK_GRAPH)
+  }
+  const param = docIds && docIds.length > 0 ? `?doc_ids=${encodeURIComponent(docIds.join(','))}` : ''
+  const response = await fetch(`${API_BASE_URL}/api/graph/resolved${param}`)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch resolved graph: ${response.status} ${response.statusText}`)
+  }
+  return (await response.json()) as GraphSnapshot
+}
+
 export interface UploadDocumentOptions {
   documentId?: string
   domain?: string
@@ -99,6 +147,44 @@ export async function uploadLocalDocument(
   }
 
   return (await response.json()) as UploadDocumentResponse
+}
+
+export interface UploadBulkResponse {
+  success: boolean
+  processed: number
+  failed: number
+  results: Array<{
+    filename: string
+    document_id?: string
+    ok?: boolean
+    error?: string
+    elapsed_ms?: number
+  }>
+  graph?: GraphSnapshot
+}
+
+export async function uploadLocalDocumentsBulk(
+  files: File[],
+  options: UploadDocumentOptions = {}
+): Promise<UploadBulkResponse> {
+  if (USE_MOCK_API) {
+    await delay(500)
+    return { success: true, processed: files.length, failed: 0, results: [], graph: structuredClone(MOCK_GRAPH) }
+  }
+
+  const formData = new FormData()
+  for (const f of files) formData.append('files', f, f.name)
+  formData.append('domain', options.domain ?? 'general')
+  formData.append('tags', JSON.stringify(options.tags ?? []))
+
+  const response = await fetch(`${API_BASE_URL}/api/extract-kg/bulk`, {
+    method: 'POST',
+    body: formData
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to upload documents: ${response.status} ${response.statusText}`)
+  }
+  return (await response.json()) as UploadBulkResponse
 }
 
 export async function deleteDocument(documentId: string): Promise<void> {

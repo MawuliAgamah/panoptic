@@ -68,6 +68,9 @@ class KGExtractionConfig:
     enable_kggen: bool = True
     fallback_to_mock: bool = True
     track_metadata: bool = True
+    # Parallelization settings for chunk-level extraction
+    # Use small default to avoid hitting provider rate limits
+    max_concurrent_chunks: int = 4
 
 
 @dataclass
@@ -86,6 +89,7 @@ class KnowledgeGraphConfig:
     """Main configuration class that consolidates all configs."""
     graph_db: DatabaseConfig
     cache_db: Optional[DatabaseConfig] = None
+    kb_db: Optional[DatabaseConfig] = None  # Dedicated knowledge base registry store
     llm: Optional[LLMConfig] = None
     cache: Optional[CacheConfig] = None
     kg_extraction: Optional[KGExtractionConfig] = None
@@ -116,6 +120,19 @@ class KnowledgeGraphConfig:
                 db_location=os.path.join(cache_dir, "cache.db")
             )
 
+        # Default KB store: SQLite alongside cache_db if available
+        if self.kb_db is None:
+            kb_path: Optional[str] = None
+            try:
+                if self.cache_db and self.cache_db.db_location:
+                    from pathlib import Path as _P
+                    kb_path = str(_P(self.cache_db.db_location).parent / "knowledgebase.db")
+            except Exception:
+                kb_path = None
+            if kb_path is None:
+                kb_path = os.path.join(os.getcwd(), "knowledgebase.db")
+            self.kb_db = DatabaseConfig(db_type="sqlite", db_location=kb_path)
+
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> 'KnowledgeGraphConfig':
         """Create configuration from dictionary."""
@@ -128,6 +145,9 @@ class KnowledgeGraphConfig:
         # Extract optional configs
         cache_db_dict = config_dict.pop('cache_db', None)
         cache_db = DatabaseConfig(**cache_db_dict) if cache_db_dict else None
+
+        kb_db_dict = config_dict.pop('kb_db', None)
+        kb_db = DatabaseConfig(**kb_db_dict) if kb_db_dict else None
 
         llm_dict = config_dict.pop('llm', {})
         llm = LLMConfig(**llm_dict) if llm_dict else None
@@ -146,6 +166,7 @@ class KnowledgeGraphConfig:
         return cls(
             graph_db=graph_db,
             cache_db=cache_db,
+            kb_db=kb_db,
             llm=llm,
             cache=cache,
             kg_extraction=kg_extraction,

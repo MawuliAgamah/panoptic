@@ -8,7 +8,10 @@
           <GraphCanvas />
         </slot>
       </main>
+      <ChatSidebar />
     </div>
+    <!-- Bottom dataset drawer and toggle -->
+    <DataDrawer />
   </div>
 </template>
 
@@ -16,6 +19,8 @@
 import TopNav from './TopNav.vue'
 import Sidebar from './Sidebar.vue'
 import GraphCanvas from '../graph/GraphCanvas.vue'
+import DataDrawer from './DataDrawer.vue'
+import ChatSidebar from './ChatSidebar.vue'
 </script>
 
 <style scoped>
@@ -30,7 +35,7 @@ import GraphCanvas from '../graph/GraphCanvas.vue'
 .dashboard-shell__body {
   flex: 1;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0;
   min-height: 0;
   overflow: hidden;
@@ -47,7 +52,7 @@ import GraphCanvas from '../graph/GraphCanvas.vue'
 
 @media (max-width: 1400px) {
   .dashboard-shell__body {
-    grid-template-columns: 300px minmax(0, 1fr);
+    grid-template-columns: 300px minmax(0, 1fr) auto;
   }
 }
 </style>

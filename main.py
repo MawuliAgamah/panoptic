@@ -48,7 +48,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 # Import and run the FastAPI server
 import uvicorn
-from src.application.server.main import app
+from src.application.api.main import app
 
 if __name__ == "__main__":
     uvicorn.run(

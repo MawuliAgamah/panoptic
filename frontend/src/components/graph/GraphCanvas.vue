@@ -54,7 +54,7 @@ const emit = defineEmits<{
 }>()
 
 const graphStore = useGraphStore()
-const { visibleNodes: nodes, visibleEdges: edges, selection, showCommunities, communityAssignments } = storeToRefs(graphStore)
+const { visibleNodes: nodes, visibleEdges: edges, selection, showCommunities, communityAssignments, focusTarget } = storeToRefs(graphStore)
 
 const containerRef = ref<HTMLDivElement | null>(null)
 let cy: Core | null = null
@@ -129,6 +129,24 @@ watch(
         instance.$id(selectionState.edgeId).select()
       }
     })
+  },
+  { deep: true }
+)
+
+// Pan/zoom to requested focus target (node or edge) from store, then clear
+watch(
+  focusTarget,
+  (target) => {
+    if (!cy || !target) return
+    const ele = cy.$id(target.id)
+    if (ele && ele.length > 0) {
+      try {
+        cy.fit(ele, 60)
+      } catch (e) {
+        // ignore fit errors
+      }
+    }
+    graphStore.clearFocusTarget()
   },
   { deep: true }
 )

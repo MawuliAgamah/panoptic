@@ -1,8 +1,8 @@
 """
 Web module for the AI Module application.
-Exports the web server functionality from the application.server module.
+If you need to reference the FastAPI app, import it from application.api.main.
 """
 
-from application.server.server import run_web_server
+from application.api.main import app as web_app  # pragma: no cover
 
-__all__ = ['run_web_server']
+__all__ = ["web_app"]

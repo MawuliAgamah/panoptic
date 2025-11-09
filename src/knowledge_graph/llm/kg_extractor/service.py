@@ -9,6 +9,7 @@ import time
 import os
 import tempfile
 from typing import Dict, List, Set, Any, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from threading import Lock
 
@@ -48,6 +49,8 @@ class KGExtractionService:
         self.config = kwargs
         self.kg_gen = None
         self.is_configured = False
+        # Parallelism controls
+        self.max_concurrent_chunks: int = int(kwargs.get("max_concurrent_chunks", 4) or 4)
         
         # Setup LLM (simplified without DSPy)
         self._setup_llm()
@@ -284,13 +287,48 @@ class KGExtractionService:
             normalized.append((text, ctx))
 
         total = len(normalized)
-        for i, (chunk_text, ctx) in enumerate(normalized):
-            if not chunk_text or not chunk_text.strip():
-                continue
-            effective_ctx = ctx or f"Chunk {i+1} of document {document_id}"
-            chunk_result = self.extract_from_text(chunk_text, context=effective_ctx, log_label=f"chunk {i+1}/{total}")
-            all_entities.update(chunk_result.get('entities', set()))
-            all_relations.extend(chunk_result.get('relations', []))
+
+        # Fast path: small number of chunks or parallelism disabled
+        if total <= 1 or (self.max_concurrent_chunks is not None and self.max_concurrent_chunks <= 1):
+            for i, (chunk_text, ctx) in enumerate(normalized):
+                if not chunk_text or not chunk_text.strip():
+                    continue
+                effective_ctx = ctx or f"Chunk {i+1} of document {document_id}"
+                chunk_result = self.extract_from_text(
+                    chunk_text,
+                    context=effective_ctx,
+                    log_label=f"chunk {i+1}/{total}"
+                )
+                all_entities.update(chunk_result.get('entities', set()))
+                all_relations.extend(chunk_result.get('relations', []))
+        else:
+            # Threaded parallelism (I/O-bound LLM calls)
+            max_workers = max(1, min(self.max_concurrent_chunks, total))
+            logger.info(
+                f"Parallel KG extraction for {total} chunks with max_workers={max_workers}"
+            )
+
+            def _task(i_and_item: tuple[int, tuple[str, Optional[str]]]) -> Dict[str, Any]:
+                i, (chunk_text, ctx) = i_and_item
+                if not chunk_text or not chunk_text.strip():
+                    return {'entities': set(), 'relations': []}
+                effective_ctx = ctx or f"Chunk {i+1} of document {document_id}"
+                return self.extract_from_text(
+                    chunk_text,
+                    context=effective_ctx,
+                    log_label=f"chunk {i+1}/{total}"
+                )
+
+            with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="kg-chunk") as executor:
+                futures = [executor.submit(_task, (i, item)) for i, item in enumerate(normalized)]
+                for fut in as_completed(futures):
+                    try:
+                        chunk_result = fut.result()
+                    except Exception as e:
+                        logger.error(f"Chunk extraction task failed: {e}")
+                        continue
+                    all_entities.update(chunk_result.get('entities', set()))
+                    all_relations.extend(chunk_result.get('relations', []))
 
         unique_relations = list(set(all_relations))
         return {

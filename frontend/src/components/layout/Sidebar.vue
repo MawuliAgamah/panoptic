@@ -103,8 +103,23 @@
           <li>Avg. degree: <strong>{{ metrics.connectivity.averageDegree }}</strong></li>
           <li>Density: <strong>{{ metrics.connectivity.density }}</strong></li>
         </ul>
-        <p v-if="metrics.connectivity.isolates.length" class="metric-card__note">
-          Isolated: {{ metrics.connectivity.isolates.join(', ') }}
+        <p v-if="metrics.connectivity.isolates.length" class="metric-card__note isolates-line">
+          <span>Isolated:</span>
+          <span class="isolates-text">
+            <template v-if="!showAllIsolates && metrics.connectivity.isolates.length > isolatesLimit">
+              {{ metrics.connectivity.isolates.slice(0, isolatesLimit).join(', ') }}
+              <span class="isolates-extra"> (+{{ metrics.connectivity.isolates.length - isolatesLimit }} more)</span>
+            </template>
+            <template v-else>
+              {{ metrics.connectivity.isolates.join(', ') }}
+            </template>
+          </span>
+          <button
+            v-if="metrics.connectivity.isolates.length > isolatesLimit"
+            class="link-btn"
+            type="button"
+            @click="showAllIsolates = !showAllIsolates"
+          >{{ showAllIsolates ? 'Show less' : 'Show all' }}</button>
         </p>
       </article>
 
@@ -121,18 +136,24 @@
       </article>
 
       <article class="metric-card">
-        <h3 class="metric-card__label">Communities</h3>
-        <ul v-if="metrics.communities.clusters.length" class="metric-card__list">
-          <li v-for="cluster in metrics.communities.clusters" :key="cluster.id">
+        <div class="metric-card__header-row">
+          <h3 class="metric-card__label">Communities</h3>
+          <label class="community-toggle">
+            <input type="checkbox" :checked="showCommunities" @change="toggleCommunities" />
+            Show communities
+          </label>
+        </div>
+        <p class="metric-card__note" v-if="metrics.communities.clusters.length">Total: {{ metrics.communities.clusters.length }}</p>
+        <ul v-if="metrics.communities.clusters.length" class="metric-card__list metric-card__list--scroll">
+          <li v-for="cluster in communitiesForDisplay" :key="cluster.id">
             {{ cluster.label }} · {{ cluster.nodeIds.length }} nodes
           </li>
         </ul>
         <p v-else class="metric-card__note">No clusters detected yet.</p>
-        <div class="community-toggle">
-          <label>
-            <input type="checkbox" :checked="showCommunities" @change="toggleCommunities" />
-            Show communities (color by cluster)
-          </label>
+        <div v-if="metrics.communities.clusters.length > communitiesLimit" class="list-footer">
+          <button class="link-btn" type="button" @click="showAllCommunities = !showAllCommunities">
+            {{ showAllCommunities ? 'Show less' : `Show all (${metrics.communities.clusters.length})` }}
+          </button>
         </div>
       </article>
       </template>
@@ -183,6 +204,17 @@ function handleDeleteDocument(documentId: string) {
     console.error('Failed to delete document', error)
   })
 }
+
+// UI controls for analytics limits
+const isolatesLimit = 10
+const showAllIsolates = ref(false)
+
+const communitiesLimit = 8
+const showAllCommunities = ref(false)
+const communitiesForDisplay = computed(() => {
+  const clusters = metrics.value.communities.clusters || []
+  return showAllCommunities.value ? clusters : clusters.slice(0, communitiesLimit)
+})
 </script>
 
 <style scoped>
@@ -340,10 +372,15 @@ function handleDeleteDocument(documentId: string) {
 .metric-card__label { font-size: var(--font-size-14); font-weight: var(--font-weight-bold); color: var(--color-brand-700); }
 
 .metric-card__list { list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--font-size-13); color: var(--text); }
+.metric-card__list--scroll { max-height: 180px; overflow: auto; }
 
 .metric-card__note { font-size: var(--font-size-12); color: var(--text-muted); }
 
 .community-toggle { margin-top: var(--space-8); font-size: var(--font-size-13); color: var(--color-brand-700); }
+.metric-card__header-row { display: flex; align-items: center; justify-content: space-between; }
+.isolates-line { display: flex; flex-wrap: wrap; gap: 6px; }
+.isolates-text { flex: 1 1 auto; }
+.isolates-extra { color: var(--text-subtle); }
 
 .sidebar__header-actions { position: absolute; top: 0; right: 0; }
 .header-toggle { border: 1px solid var(--border-strong); background: var(--surface-1); color: var(--color-brand-700); border-radius: var(--radius-8); font-size: var(--font-size-11); font-weight: var(--font-weight-bold); padding: 4px 8px; cursor: pointer; }

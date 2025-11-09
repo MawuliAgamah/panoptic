@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CSV → Knowledge Graph (Agent Pilot)</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      margin: 0;
+      color: #222;
+    }
+
+    header {
+      padding: 12px 16px;
+      border-bottom: 1px solid #ddd;
+      background: #f8f8f8;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      min-height: calc(100vh - 54px);
+    }
+
+    .panel {
+      padding: 16px;
+      border-right: 1px solid #eee;
+    }
+
+    .controls {
+      display: grid;
+      gap: 12px;
+    }
+
+    .controls section {
+      border: 1px solid #eee;
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .controls h3 {
+      margin: 0 0 8px;
+      font-size: 14px;
+    }
+
+    .row {
+      display: grid;
+      gap: 8px;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 8px 12px;
+      border: 1px solid #ccc;
+      background: #fff;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .btn.primary {
+      background: #0f62fe;
+      color: #fff;
+      border-color: #0f62fe;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .stats {
+      font-size: 13px;
+      color: #555;
+    }
+
+    #cy {
+      width: 100%;
+      height: calc(100vh - 54px);
+    }
+
+    .footer {
+      font-size: 12px;
+      color: #666;
+      margin-top: 8px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 100px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .small {
+      font-size: 12px;
+      color: #666;
+    }
+  </style>
+  <!-- Libraries from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.73.4/dist/3d-force-graph.min.js"></script>
+</head>
+
+<body>
+  <header>
+    <strong>CSV → Knowledge Graph (Agent Pilot)</strong>
+  </header>
+  <main>
+    <aside class="panel">
+      <div class="controls">
+        <section>
+          <h3>1) Select Files</h3>
+          <div class="row">
+            <label class="small">CSV File</label>
+            <input type="file" id="csvInput" accept=".csv,text/csv" />
+          </div>
+          <div class="row">
+            <label class="small">Mapping JSON</label>
+            <input type="file" id="mapInput" accept=".json,application/json" />
+          </div>
+          <div class="row">
+            <label class="small">KG JSON (entities + relations)</label>
+            <input type="file" id="kgInput" accept=".json,application/json" />
+          </div>
+          <div class="row">
+            <button class="btn" id="btnUseSample">Use Sample Data</button>
+          </div>
+        </section>
+
+        <section>
+          <h3>2) Build Graph</h3>
+          <div class="row">
+            <button class="btn primary" id="btnBuild" disabled>Build Graph</button>
+            <button class="btn" id="btnRenderKG" disabled>Render KG JSON</button>
+            <button class="btn" id="btnRenderKG3D" disabled>Render KG JSON (3D)</button>
+            <label class="small">Sample nodes (3D): <input type="number" id="sampleNodes" value="1500" min="100"
+                max="10000" style="width:100px;" /></label>
+            <label class="small"><input type="checkbox" id="chkResolve" /> Resolve duplicates (simple)</label>
+            <label class="small"><input type="checkbox" id="chkPrune" /> Prune isolates</label>
+            <div class="stats" id="stats">Waiting for input…</div>
+            <button class="btn" id="btnExport" disabled>Export KG JSON</button>
+          </div>
+        </section>
+        <section>
+          <div class="row">
+            <label class="small">Top N (PageRank): <input type="number" id="topN" value="20" min="1" max="200"
+                style="width:80px;" /></label>
+            <button class="btn" id="btnPageRank" disabled>Highlight Top PageRank</button>
+            <button class="btn" id="btnCommunities" disabled>Color by Communities</button>
+            <button class="btn" id="btnResetStyles" disabled>Reset Styles</button>
+          </div>
+        </section>
+        <section>
+          <h3>Debug</h3>
+          <div class="row">
+            <label class="small">Mapping JSON (parsed)</label>
+            <textarea id="mapPreview" readonly></textarea>
+          </div>
+        </section>
+
+        <div class="footer">Tip: mapping builds node IDs using prefix + column + optional transform (slug, lower,
+          title_case, etc.).</div>
+      </div>
+    </aside>
+    <section id="cy"></section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+
+</html>

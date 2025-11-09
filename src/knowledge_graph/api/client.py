@@ -1,9 +1,9 @@
-from typing import Dict, Optional, Union, List, Any
+from typing import Dict, Optional, Union, List, Any, Tuple
 import logging
 from pathlib import Path
 from datetime import datetime
 from ..core.db.db_client import DatabaseClient
-from ..pipeline import DocumentPipelineConfig
+from ..document_ingestion import DocumentPipelineConfig
 from ..config import (
     KnowledgeGraphConfig,
     DatabaseConfig,
@@ -13,6 +13,12 @@ from ..config import (
     GraphDatabaseConfig,
     AuthCredentials
 )
+from ..data_structs.knowledge_base import KnowledgeBase
+from ..persistence.sqlite.knowledge_base_repository import SQLiteKnowledgeBaseRepository
+from ..persistence.json.knowledge_base_repository import JSONKnowledgeBaseRepository
+import json as _json
+import re as _re
+import os as _os
 
 
 class KnowledgeGraphClient:
@@ -36,7 +42,10 @@ class KnowledgeGraphClient:
         models: Optional[Dict[str, str]] = None,
         embedding_dimension: int = 768,
         max_connections: int = 10,
-        timeout: int = 30
+        timeout: int = 30,
+        # Knowledge base store selection (optional)
+        kb_store_backend: Optional[str] = None,  # "sqlite" | "json" | None (auto)
+        kb_store_location: Optional[str] = None,  # path to SQLite DB file or JSON file
     ):
         """
         Initialize the Knowledge Graph Client.
@@ -87,6 +96,62 @@ class KnowledgeGraphClient:
         self.db_client = self._initialize_database_connection()
         self._initialize_services()
 
+        # Knowledge base persistence selection
+        # Priority: explicit args -> config (graph_db/cache_db) -> db_client sqlite -> JSON colocated with config
+        self._kb_repo = None
+        try:
+            # 1) Explicit args
+            if kb_store_backend and kb_store_backend.strip().lower() == "sqlite":
+                db_path = self._resolve_kb_sqlite_path_override(kb_store_location)
+                if db_path:
+                    self._ensure_parent_dir(db_path)
+                    self._kb_repo = SQLiteKnowledgeBaseRepository(db_path)
+                    self.logger.info(f"KB repo initialized (sqlite, explicit): {db_path}")
+            elif kb_store_backend and kb_store_backend.strip().lower() == "json":
+                json_path = kb_store_location or self._kb_registry_path_from_config()
+                self._ensure_parent_dir(json_path)
+                self._kb_repo = JSONKnowledgeBaseRepository(json_path)
+                self.logger.info(f"KB repo initialized (json, explicit): {json_path}")
+
+            # 2) From config (prefer explicit kb_db, then sqlite cache/graph)
+            if self._kb_repo is None:
+                db_path_cfg: Optional[str] = None
+                try:
+                    # Dedicated KB DB if provided
+                    if self.config and getattr(self.config, "kb_db", None) and (self.config.kb_db.db_type or "").lower() == "sqlite":
+                        db_path_cfg = self.config.kb_db.db_location
+                    # Fall back to cache_db sqlite
+                    if self.config and self.config.cache_db and (self.config.cache_db.db_type or "").lower() == "sqlite":
+                        db_path_cfg = self.config.cache_db.db_location
+                    # Finally, graph_db sqlite
+                    if (not db_path_cfg) and self.config and (self.config.graph_db.db_type or "").lower() == "sqlite":
+                        db_path_cfg = self.config.graph_db.db_location
+                except Exception:
+                    db_path_cfg = None
+                if db_path_cfg:
+                    self._ensure_parent_dir(db_path_cfg)
+                    self._kb_repo = SQLiteKnowledgeBaseRepository(db_path_cfg)
+                    self.logger.info(f"KB repo initialized (sqlite, config): {db_path_cfg}")
+
+            # 3) From DatabaseClient sqlite service
+            if self._kb_repo is None:
+                sqlite_service = getattr(self.db_client, "sqlite_service", None)
+                if sqlite_service and getattr(sqlite_service, "repository", None):
+                    db_path_dc = sqlite_service.repository.db_path
+                    if db_path_dc:
+                        self._ensure_parent_dir(db_path_dc)
+                        self._kb_repo = SQLiteKnowledgeBaseRepository(db_path_dc)
+                        self.logger.info(f"KB repo initialized (sqlite, autodetect): {db_path_dc}")
+
+            # 4) JSON fallback colocated with configured DB/data
+            if self._kb_repo is None:
+                json_path = self._kb_registry_path_from_config()
+                self._ensure_parent_dir(json_path)
+                self._kb_repo = JSONKnowledgeBaseRepository(json_path)
+                self.logger.info(f"KB repo fallback (json, config): {json_path}")
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize KB repository: {e}")
+
         self.logger.info("KnowledgeGraphClient initialized successfully")
     
     def _configure_logging(self, log_level: str) -> None:
@@ -98,23 +163,63 @@ class KnowledgeGraphClient:
           configured level and propagate to root so a single handler captures all logs.
         """
         from ..core.logging_utils import InjectContextFilter
+        from logging.handlers import RotatingFileHandler
+        import os
 
         level = getattr(logging, log_level.upper(), logging.INFO)
 
-        # Root logger configuration (single console handler)
+        # Root logger configuration (console + rotating file handler)
         root_logger = logging.getLogger()
         root_logger.setLevel(level)
 
-        # Avoid duplicate handlers
+        # Common formatter including correlation fields
+        formatter = logging.Formatter(
+            '%(asctime)s | %(levelname)s | %(name)s | doc=%(doc_id)s run=%(run_id)s | %(message)s'
+        )
+
+        # Ensure all existing handlers get the context filter
+        for h in root_logger.handlers:
+            try:
+                h.addFilter(InjectContextFilter())
+            except Exception:
+                pass
+
+        # Console handler: add one if none exists
         if not any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers):
-            handler = logging.StreamHandler()
-            # Include correlation fields in the log format
-            formatter = logging.Formatter(
-                '%(asctime)s | %(levelname)s | %(name)s | doc=%(doc_id)s run=%(run_id)s | %(message)s'
-            )
-            handler.setFormatter(formatter)
-            handler.addFilter(InjectContextFilter())
-            root_logger.addHandler(handler)
+            console = logging.StreamHandler()
+            console.setFormatter(formatter)
+            console.addFilter(InjectContextFilter())
+            root_logger.addHandler(console)
+
+        # File handler: logs/app.log at project root (overridable via KG_LOG_FILE)
+        try:
+            log_file = os.getenv('KG_LOG_FILE')
+            if not log_file:
+                # Compute project root and default path
+                project_root = Path(__file__).resolve().parents[3]
+                logs_dir = project_root / 'logs'
+                logs_dir.mkdir(parents=True, exist_ok=True)
+                log_file = str(logs_dir / 'app.log')
+
+            already = False
+            for h in root_logger.handlers:
+                if hasattr(h, 'baseFilename') and getattr(h, 'baseFilename', None) == log_file:
+                    already = True
+                    # Ensure formatter + filter are attached
+                    try:
+                        h.setFormatter(formatter)
+                        h.addFilter(InjectContextFilter())
+                    except Exception:
+                        pass
+                    break
+            if not already:
+                file_h = RotatingFileHandler(log_file, maxBytes=10_000_000, backupCount=5, encoding='utf-8')
+                file_h.setFormatter(formatter)
+                file_h.addFilter(InjectContextFilter())
+                root_logger.addHandler(file_h)
+        except Exception:
+            # Never fail client init on logging errors
+            pass
 
         # Ensure our primary namespaces propagate to root
         kg_logger = logging.getLogger("knowledge_graph")
@@ -204,7 +309,8 @@ class KnowledgeGraphClient:
         self.knowledge_graph_service = KnowledgeGraphService(
             db_client=self.db_client,
             llm_service=self.llm_service,
-            llm_provider=llm_provider
+            llm_provider=llm_provider,
+            kg_extraction_config=kg_extraction_config
         )
 
         self.logger.info("Initializing document service")
@@ -254,6 +360,8 @@ class KnowledgeGraphClient:
                 document_type = 'docx'
             elif ext in ['.md', '.markdown']:
                 document_type = 'markdown'
+            elif ext in ['.csv']:
+                document_type = 'csv'
             elif ext in ['.txt']:
                 document_type = 'text'
             else:
@@ -286,6 +394,195 @@ class KnowledgeGraphClient:
     def delete_document(self,document_id: str):
         self.document_service.delete_document(document_id)
         self.logger.info(f"Document deleted with ID: {document_id}")
+
+    # -------------------------------
+    # Knowledge Base operations (JSON-backed registry)
+    # -------------------------------
+
+    class KnowledgeBaseHandle:
+        """A lightweight handle bound to a specific knowledge base.
+
+        Exposes KB-scoped operations (e.g., upload_file) in future iterations.
+        """
+
+        def __init__(self, client: "KnowledgeGraphClient", kb: KnowledgeBase):
+            self._client = client
+            self.id = kb.id
+            self.name = kb.name
+            self.slug = kb.slug
+            self.owner_id = kb.owner_id
+
+        def __repr__(self) -> str:  # pragma: no cover
+            return f"KnowledgeBaseHandle(id={self.id!r}, name={self.name!r}, owner_id={self.owner_id!r})"
+
+    def create_knowledgebase(self, name: str, owner_id: Optional[str] = None, description: Optional[str] = None) -> "KnowledgeBaseHandle":
+        """Create (or return existing) knowledge base for an owner.
+
+        Idempotent on (owner_id, slug). Returns a handle bound to the KB.
+        """
+        slug = self._slugify(name)
+        self.logger.info("KB create", extra={"kb_name": name, "kb_slug": slug, "owner_id": owner_id or "-"})
+        kb = self._kb_repo.create(name=name, slug=slug, owner_id=owner_id, description=description)
+        self.logger.info("KB create done", extra={"kb_id": kb.id, "kb_slug": kb.slug, "owner_id": kb.owner_id or "-"})
+        return self.KnowledgeBaseHandle(self, kb)
+
+    def get_knowledgebase(self, id_or_name: str, owner_id: Optional[str] = None) -> "KnowledgeBaseHandle":
+        """Lookup a knowledge base by id, slug, or exact name.
+
+        If owner_id is provided, it scopes the match; otherwise first match is returned.
+        Raises ValueError if not found.
+        """
+        self.logger.info("KB get", extra={"lookup": id_or_name, "owner_id": owner_id or "-"})
+        # id
+        kb = self._kb_repo.get_by_id(id_or_name)
+        if kb and (owner_id is None or kb.owner_id == owner_id):
+            return self.KnowledgeBaseHandle(self, kb)
+        # slug
+        slug = self._slugify(id_or_name)
+        kb = self._kb_repo.get_by_slug(slug, owner_id=owner_id)
+        if kb:
+            return self.KnowledgeBaseHandle(self, kb)
+        # name match: list and match exact
+        all_kb = self._kb_repo.list(owner_id=owner_id)
+        for it in all_kb:
+            if it.name == id_or_name:
+                return self.KnowledgeBaseHandle(self, it)
+        raise ValueError(f"Knowledge base not found: {id_or_name}")
+
+    def list_knowledgebases(self, owner_id: Optional[str] = None) -> List[KnowledgeBase]:
+        """List all knowledge bases, optionally filtered by owner."""
+        items = self._kb_repo.list(owner_id=owner_id)
+        self.logger.info("KB list", extra={"owner_id": owner_id or "-", "kb_count": len(items)})
+        return items
+
+    # ---- Internal KB registry helpers ----
+    def _resolve_kb_registry_path(self) -> str:
+        """Compute a stable path for the KB registry JSON file."""
+        try:
+            # Place under project_root/database/knowledge_bases.json
+            project_root = Path(__file__).resolve().parents[3]
+            registry = project_root / "database" / "knowledge_bases.json"
+            return str(registry)
+        except Exception:
+            # Fallback to current working directory
+            return str(Path.cwd() / "knowledge_bases.json")
+
+    def _default_sqlite_db_path(self) -> str:
+        """Default SQLite DB file for knowledge base store if none provided."""
+        try:
+            project_root = Path(__file__).resolve().parents[3]
+            return str(project_root / "database" / "sql_lite" / "document_db.db")
+        except Exception:
+            return str(Path.cwd() / "document_db.db")
+
+    def _resolve_kb_sqlite_path_override(self, override: Optional[str]) -> Optional[str]:
+        if not override:
+            return None
+        try:
+            p = Path(override)
+            if not p.is_absolute():
+                # Resolve relative to project root if possible
+                project_root = Path(__file__).resolve().parents[3]
+                p = (project_root / p).resolve()
+            return str(p)
+        except Exception:
+            return override
+
+    @staticmethod
+    def _ensure_parent_dir(path: str) -> None:
+        try:
+            d = Path(path).parent
+            d.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+    def _kb_registry_path_from_config(self) -> str:
+        """Preferred JSON registry path colocated with configured DB or data file."""
+        # If graph_db is JSON and has data_file, place alongside
+        try:
+            if self.config and (self.config.graph_db.db_type or "").lower() == "json":
+                data_file = getattr(self.config.graph_db, "data_file", None)
+                if data_file:
+                    df = Path(str(data_file))
+                    return str(df.parent / "knowledge_bases.json")
+        except Exception:
+            pass
+
+        # If SQLite configured, put JSON in same database dir
+        try:
+            for dbc in (getattr(self.config, "cache_db", None), getattr(self.config, "graph_db", None)):
+                if dbc and (getattr(dbc, "db_type", None) or "").lower() == "sqlite" and getattr(dbc, "db_location", None):
+                    p = Path(str(dbc.db_location))
+                    return str(p.parent / "knowledge_bases.json")
+        except Exception:
+            pass
+
+        # Fallback to legacy default
+        return self._resolve_kb_registry_path()
+
+    def _kb_registry_read(self) -> List[Dict[str, Any]]:
+        try:
+            with open(self._kb_registry_path, "r", encoding="utf-8") as f:
+                data = _json.load(f) or {}
+            return list(data.get("items") or [])
+        except FileNotFoundError:
+            return []
+        except Exception as e:
+            self.logger.warning(f"Failed to read KB registry: {e}")
+            return []
+
+    def _kb_registry_write(self, items: List[Dict[str, Any]]) -> None:
+        try:
+            with open(self._kb_registry_path, "w", encoding="utf-8") as f:
+                _json.dump({"items": items}, f, ensure_ascii=False, indent=2, default=str)
+        except Exception as e:
+            self.logger.error(f"Failed to write KB registry: {e}")
+
+    @staticmethod
+    def _slugify(name: str) -> str:
+        s = (name or "").strip().lower()
+        s = _re.sub(r"[^a-z0-9]+", "-", s)
+        s = _re.sub(r"-+", "-", s)
+        return s.strip("-") or "kb"
+
+    # --- Bulk ingestion wrapper ---
+    def bulk_add_documents(
+        self,
+        root: str,
+        glob: str = "**/*.md",
+        *,
+        domain: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        concurrency: int = 1,
+        skip_existing: bool = True,
+        force_structured_markdown: bool = True,
+    ) -> list[dict]:
+        """Discover and ingest many markdown files under a directory.
+
+        Returns a list of per-file result dicts {path, id?, ok?, skipped?, chunks?, elapsed_ms, error?}.
+        """
+        pipeline_overrides = None
+        if force_structured_markdown:
+            # Base settings from config, but force markdown chunker
+            dp = getattr(self.config, 'document_pipeline', None)
+            pipeline_overrides = DocumentPipelineConfig(
+                enable_enrichment=getattr(dp, 'enable_enrichment', True) if dp else True,
+                enable_kg_extraction=getattr(dp, 'enable_kg_extraction', True) if dp else True,
+                enable_persistence=True,
+                chunk_size=getattr(dp, 'chunk_size', 1000) if dp else 1000,
+                chunk_overlap=getattr(dp, 'chunk_overlap', 200) if dp else 200,
+                chunker_type='structured_markdown',
+            )
+
+        return self.document_service.add_documents_from_dir(
+            root,
+            glob=glob,
+            domain=domain,
+            tags=tags,
+            concurrency=concurrency,
+            skip_existing=skip_existing,
+            pipeline_overrides=pipeline_overrides,
+        )
 
     def get_cached_document(self,document_id):
         document_object = self.db_client.get_document(document_id=document_id)

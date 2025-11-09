@@ -32,6 +32,7 @@ dependencies = [
     "uvicorn",
     "python-multipart",
     "dspy",
+    "lancedb>=0.25.3",
 ]
 
 [project.urls]

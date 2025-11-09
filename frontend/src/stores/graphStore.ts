@@ -13,9 +13,11 @@ import type {
 import { calculateGraphMetrics, computeNodeMetrics, detectCommunitiesLPA } from '@/utils/graphMetrics'
 import {
   fetchGraphSnapshot,
+  fetchResolvedGraphSnapshot,
   saveGraphSnapshot,
   triggerExtractionForNode,
-  deleteDocument as deleteDocumentRequest
+  deleteDocument as deleteDocumentRequest,
+  runEntityResolution as runEntityResolutionApi
 } from '@/services/backend'
 
 const METRICS_BASELINE: GraphMetrics = {
@@ -57,6 +59,9 @@ export const useGraphStore = defineStore('graph', () => {
   const errorMessage = ref<string | null>(null)
   const visibleDocumentIds = ref<Set<string>>(new Set())
   const showCommunities = ref(false)
+  const graphMode = ref<'raw' | 'resolved'>('raw')
+  // Imperative focus target for canvas (node or edge)
+  const focusTarget = ref<null | { type: 'node' | 'edge'; id: string }>(null)
 
   const selectedNode = computed(() =>
     nodes.value.find((node) => node.id === selection.value.nodeId) ?? null
@@ -109,6 +114,18 @@ export const useGraphStore = defineStore('graph', () => {
 
   function setSelection(newSelection: GraphSelection) {
     selection.value = newSelection
+  }
+
+  // Request canvas to focus/pan/zoom to a node
+  function focusNode(nodeId: string) {
+    focusTarget.value = { type: 'node', id: nodeId }
+  }
+  // Request canvas to focus/pan/zoom to an edge
+  function focusEdge(edgeId: string) {
+    focusTarget.value = { type: 'edge', id: edgeId }
+  }
+  function clearFocusTarget() {
+    focusTarget.value = null
   }
 
   function addNode(payload: NodeCreationPayload): GraphNode {
@@ -324,6 +341,22 @@ export const useGraphStore = defineStore('graph', () => {
     }
   }
 
+  async function loadResolvedGraph() {
+    isLoading.value = true
+    errorMessage.value = null
+    try {
+      // Filter by selected documents if any
+      const docs = Array.from(visibleDocumentIds.value)
+      const snapshot = await fetchResolvedGraphSnapshot(docs.length > 0 ? docs : undefined)
+      applySnapshot(snapshot)
+    } catch (error) {
+      errorMessage.value = (error as Error).message
+      throw error
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   async function deleteDocument(documentId: string) {
     isLoading.value = true
     errorMessage.value = null
@@ -374,6 +407,33 @@ export const useGraphStore = defineStore('graph', () => {
     showCommunities.value = !showCommunities.value
   }
 
+  async function runEntityResolution() {
+    isLoading.value = true
+    errorMessage.value = null
+    try {
+      const docs = Array.from(visibleDocumentIds.value)
+      await runEntityResolutionApi(docs.length > 0 ? docs : undefined)
+      if (graphMode.value === 'resolved') {
+        await loadResolvedGraph()
+      }
+    } catch (error) {
+      errorMessage.value = (error as Error).message
+      throw error
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function setGraphMode(mode: 'raw' | 'resolved') {
+    if (graphMode.value === mode) return
+    graphMode.value = mode
+    if (mode === 'resolved') {
+      await loadResolvedGraph()
+    } else {
+      await loadGraph()
+    }
+  }
+
   async function triggerExtraction(nodeId: string, documentId: string) {
     isLoading.value = true
     errorMessage.value = null
@@ -420,6 +480,7 @@ export const useGraphStore = defineStore('graph', () => {
     communityAssignments,
     selectedNode,
     selectedEdge,
+    focusTarget,
     addNode,
     updateNode,
     removeNode,
@@ -433,10 +494,17 @@ export const useGraphStore = defineStore('graph', () => {
     unlinkDocumentFromNode,
     saveGraph,
     loadGraph,
+    loadResolvedGraph,
+    runEntityResolution: runEntityResolution,
+    graphMode,
+    setGraphMode,
     applySnapshot,
     deleteDocument,
     triggerExtraction,
     setSelection,
+    focusNode,
+    focusEdge,
+    clearFocusTarget,
     // visibility
     visibleDocumentIds,
     setVisibleDocuments,

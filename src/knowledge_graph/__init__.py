@@ -31,7 +31,10 @@ def create_client(
     neo4j_uri: str = "bolt://localhost:7687",
     neo4j_user: str = "neo4j",
     neo4j_password: str = "password",
-    openai_api_key: Optional[str] = None
+    openai_api_key: Optional[str] = None,
+    *,
+    kb_store_backend: Optional[str] = None,
+    kb_store_location: Optional[str] = None,
 ) -> KnowledgeGraphClient:
     """
     Create a simple knowledge graph client with minimal configuration.
@@ -48,7 +51,12 @@ def create_client(
         Configured KnowledgeGraphClient ready to use
     """
     if graph_db_type == "json":
-        return create_json_client(data_file=data_file, openai_api_key=openai_api_key)
+        return create_json_client(
+            data_file=data_file,
+            openai_api_key=openai_api_key,
+            kb_store_backend=kb_store_backend,
+            kb_store_location=kb_store_location,
+        )
     else:
         return KnowledgeGraphClient.create_simple(
             neo4j_uri=neo4j_uri,
@@ -59,7 +67,10 @@ def create_client(
 
 def create_json_client(
     data_file: Optional[str] = None,
-    openai_api_key: Optional[str] = None
+    openai_api_key: Optional[str] = None,
+    *,
+    kb_store_backend: Optional[str] = None,
+    kb_store_location: Optional[str] = None,
 ) -> KnowledgeGraphClient:
     """
     Create a client using JSON for knowledge graph storage.
@@ -81,7 +92,7 @@ def create_json_client(
     # Set up proper cache directory
     current_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(current_dir))
-    cache_db_path = os.path.join(project_root, "database", "sql_lite", "document_db.db")
+    cache_db_path = os.path.join(project_root, "database", "sql_lite", "knowledgebase.db")
 
     # Ensure cache directory exists
     os.makedirs(os.path.dirname(cache_db_path), exist_ok=True)
@@ -91,16 +102,28 @@ def create_json_client(
         db_location=cache_db_path
     )
 
+    # Dedicated KB database colocated with sqlite cache by default
+    kb_db_path = os.path.join(project_root, "database", "sql_lite", "knowledgebase.db")
+    kb_sqlite_config = DatabaseConfig(
+        db_type="sqlite",
+        db_location=kb_db_path
+    )
+
     config = KnowledgeGraphConfig(
         graph_db=sqlite_config,
         cache_db=sqlite_config,
+        kb_db=kb_sqlite_config,
         llm=LLMConfig(
             provider="openai",
             api_key=openai_api_key
         )
     )
 
-    return KnowledgeGraphClient(config=config)
+    return KnowledgeGraphClient(
+        config=config,
+        kb_store_backend=kb_store_backend,
+        kb_store_location=kb_store_location,
+    )
 
 __all__ = [
     # Main client
