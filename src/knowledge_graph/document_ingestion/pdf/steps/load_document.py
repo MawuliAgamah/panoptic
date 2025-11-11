@@ -11,8 +11,8 @@ from ...document_pipeline import (
     DocumentPipelineError,
     PipelineStep,
 )
-from ....document.models.document import Document
-from ....document.models.metadata import DocumentMetadata
+from ....data_structs.document import Document
+from ....data_structs.document import DocumentMetadata
 from ..utils import ParserFactory
 
 

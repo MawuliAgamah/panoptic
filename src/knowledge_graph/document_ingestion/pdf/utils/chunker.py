@@ -9,7 +9,7 @@ import logging
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from ....document.models.chunk import ChunkMetadata, TextChunk
+from ....data_structs.document import ChunkMetadata, TextChunk
 
 logger = logging.getLogger("knowledgeAgent.pipeline.chunk")
 

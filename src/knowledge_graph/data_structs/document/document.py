@@ -4,7 +4,6 @@ from datetime import datetime
 from .citation import Citation
 from .chunk import TextChunk
 from .metadata import DocumentMetadata
-from rich.console import Console
 
 @dataclass
 class Document:
@@ -99,3 +98,4 @@ class Document:
             context_parts.append(f"Tags: {', '.join(self.metadata.tags[:3])}")
 
         return " | ".join(context_parts) if context_parts else "Personal knowledge document"
+

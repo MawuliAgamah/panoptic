@@ -14,6 +14,7 @@ from ..document_ingestion.pdf.steps import (
     PersistDocumentStep,
     RouteDocumentStep,
 )
+from ..document_ingestion.factory import PipelineFactory
 from ..knowledge_graph.service import KnowledgeGraphService
 
 class DocumentService:
@@ -51,38 +52,14 @@ class DocumentService:
         kg_enabled = config.enable_kg_extraction
         persistence_enabled = config.enable_persistence and self.db_client is not None
 
-        steps = [
-            LoadDocumentStep(),
-            CleanContentStep(),
-            RouteDocumentStep(),
-            # Handle CSV deterministically before any chunk/LLM extraction
-            ExtractCsvGraphStep(),
-            ChunkContentStep(
-                chunk_size=config.chunk_size,
-                chunk_overlap=config.chunk_overlap,
-                chunker_type=config.chunker_type,
-            ),
-            ExtractKnowledgeGraphStep(
-                enabled=kg_enabled,
-                chunk_size=config.chunk_size,
-                chunk_overlap=config.chunk_overlap,
-                chunker_type=config.chunker_type,
-            ),
-            PersistDocumentStep(self.db_client, enabled=persistence_enabled),
-        ]
-
+        # Default/general pipeline mirrors previous behavior
         services = DocumentPipelineServices(
             llm_service=self.llm_service,
             kg_service=self.kg_service,
             db_client=self.db_client,
             llm_provider=self.llm_provider,
         )
-
-        return DocumentPipeline(
-            services=services,
-            config=config,
-            steps=steps,
-        )
+        return PipelineFactory.general_pipeline(services, config=config)
 
     def build_pipeline(self, config: DocumentPipelineConfig) -> DocumentPipeline:
         """Construct a new pipeline instance using the provided configuration."""
@@ -90,8 +67,17 @@ class DocumentService:
 
     def process_document(self, document_path, document_id, domain=None, tags=None, pipeline=None):
         """Run the configured pipeline and return the processed document."""
-        active_pipeline = pipeline or self.pipeline
-        return active_pipeline.run(
+        # Choose a pipeline if none provided, based on file extension
+        if pipeline is None:
+            services = DocumentPipelineServices(
+                llm_service=self.llm_service,
+                kg_service=self.kg_service,
+                db_client=self.db_client,
+                llm_provider=self.llm_provider,
+            )
+            pipeline = PipelineFactory.for_file(document_path, services, config=self.pipeline_config)
+
+        return pipeline.run(
             document_path=document_path,
             document_id=document_id,
             domain=domain,

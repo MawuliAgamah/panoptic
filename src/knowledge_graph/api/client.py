@@ -3,7 +3,8 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from ..core.db.db_client import DatabaseClient
-from ..document_ingestion import DocumentPipelineConfig
+from ..document_ingestion import DocumentPipelineConfig, DocumentPipelineServices
+from ..document_ingestion.factory import PipelineFactory
 from ..config import (
     KnowledgeGraphConfig,
     DatabaseConfig,
@@ -95,6 +96,8 @@ class KnowledgeGraphClient:
         # Initialize services
         self.db_client = self._initialize_database_connection()
         self._initialize_services()
+
+        # Agent is constructed on demand when building pipeline services
 
         # Knowledge base persistence selection
         # Priority: explicit args -> config (graph_db/cache_db) -> db_client sqlite -> JSON colocated with config
@@ -286,7 +289,6 @@ class KnowledgeGraphClient:
 
     def _initialize_services(self) -> None:
         """Initialize all required services."""
-        from ..document.service import DocumentService
         from ..llm.service import LLMService
         from ..knowledge_graph.service import KnowledgeGraphService
         from ..llm.kg_extractor.service import KGExtractionService
@@ -313,9 +315,9 @@ class KnowledgeGraphClient:
             kg_extraction_config=kg_extraction_config
         )
 
-        self.logger.info("Initializing document service")
+        # Prepare pipeline configuration (used by factory-built pipelines)
         pipeline_settings = getattr(self.config, 'document_pipeline', None)
-        pipeline_config = DocumentPipelineConfig(
+        self.pipeline_config = DocumentPipelineConfig(
             enable_enrichment=getattr(pipeline_settings, 'enable_enrichment', True),
             enable_kg_extraction=getattr(pipeline_settings, 'enable_kg_extraction', True),
             enable_persistence=getattr(pipeline_settings, 'enable_persistence', True),
@@ -323,76 +325,56 @@ class KnowledgeGraphClient:
             chunk_overlap=getattr(pipeline_settings, 'chunk_overlap', 200),
             chunker_type=getattr(pipeline_settings, 'chunker_type', 'auto'),
         )
-        self.document_service = DocumentService(
-            db_client=self.db_client,
-            llm_service=self.llm_service,
-            llm_provider=llm_provider,
-            pipeline_config=pipeline_config,
-            kg_service=self.knowledge_graph_service,
-        )
+        # Keep llm_provider for pipeline services construction
+        self.llm_provider = llm_provider
 
     # Document Operations
-    def add_document(self, document_path: str, document_id: str, document_type: Optional[str] = None, 
-                    domain: Optional[str] = None, tags: Optional[List[str]] = None) -> str:
-        """
-        Add a document to the knowledge graph.
-        
-        Args:
-            document_path: Path to the document file
-            document_id: Unique identifier for the document
-            document_type: Type of document (optional, will be inferred if not provided)
-            domain: Domain/category for the document
-            tags: List of tags for the document
-            
-        Returns:
-            document_id: Unique ID for the added document
+    def add_document(self, document_path: str) -> str:
+        """Add a document to the knowledge graph using the appropriate pipeline.
+
+        Auto-generates a document ID and routes to a CSV or general pipeline
+        based on file extension.
+
+        Returns the generated document ID.
         """
         self.logger.info(f"Adding document: {document_path}")
-        
-        # Infer document type if not provided
-        if document_type is None:
-            # Simple inference based on file extension
-            import os
-            ext = os.path.splitext(document_path)[1].lower()
-            if ext == '.pdf':
-                document_type = 'pdf'
-            elif ext in ['.doc', '.docx']:
-                document_type = 'docx'
-            elif ext in ['.md', '.markdown']:
-                document_type = 'markdown'
-            elif ext in ['.csv']:
-                document_type = 'csv'
-            elif ext in ['.txt']:
-                document_type = 'text'
-            else:
-                document_type = 'unknown'
-            self.logger.info(f"Inferred document_type: {document_type}")
-        
-        # If document_id is None, generate a fallback ID
-        if document_id is None:
-            import hashlib
-            import time
-            fallback_id = hashlib.md5(f"{document_path}:{time.time()}".encode()).hexdigest()
-            self.logger.warning(f"Document service returned None ID, using fallback: {fallback_id}")
-            document_id = fallback_id
-        
-        # Use document service to process the document
-        result_id = self.document_service.add_document(
-            document_path=document_path, 
-            document_type=document_type,
+        # Generate a simple short id; persistence will use this as the primary key
+        import uuid as _uuid
+        document_id = f"doc_{_uuid.uuid4().hex[:8]}"
+
+        # Build pipeline services and run appropriate pipeline via factory
+        services = DocumentPipelineServices(
+            llm_service=self.llm_service,
+            kg_service=self.knowledge_graph_service,
+            db_client=self.db_client,
+            llm_provider=self.llm_provider,
+            agent_service=self._build_csv_agent(),
+        )
+        pipeline = PipelineFactory.for_file(document_path, services, config=self.pipeline_config)
+        document = pipeline.run(
+            document_path=document_path,
             document_id=document_id,
-            domain=domain,
-            tags=tags,
-            cache=True
-            )
-        
-        document_id = result_id if result_id is not None else document_id
+            domain=None,
+            tags=None,
+        )
+        if document and getattr(document, 'id', None):
+            document_id = document.id
             
         self.logger.info(f"Document added with ID: {document_id}")
         return document_id
+
+    def upload_file(self, file_path: str) -> str:
+        """Convenience: upload/ingest a file and route to the appropriate pipeline.
+
+        Auto-generates a document ID and returns it.
+        """
+        return self.add_document(document_path=file_path)
     
     def delete_document(self,document_id: str):
-        self.document_service.delete_document(document_id)
+        try:
+            self.db_client.delete_document(document_id)
+        except Exception:
+            self.logger.exception("Failed to delete document %s", document_id)
         self.logger.info(f"Document deleted with ID: {document_id}")
 
     # -------------------------------
@@ -538,6 +520,20 @@ class KnowledgeGraphClient:
         except Exception as e:
             self.logger.error(f"Failed to write KB registry: {e}")
 
+    # --- Agent construction (CSV analysis) ---
+    def _build_csv_agent(self):
+        """Return a CSV analysis agent instance for pipeline steps.
+
+        Kept lightweight and constructed on demand to avoid heavy imports at init.
+        """
+        try:
+            from knowledge_graph.agent.agent import CsvAnalysisAgent
+            return CsvAnalysisAgent()
+        except Exception:
+            # If agent fails to import, return None so steps skip gracefully
+            self.logger.warning("CSV agent unavailable; skipping agent-driven steps")
+            return None
+
     @staticmethod
     def _slugify(name: str) -> str:
         s = (name or "").strip().lower()
@@ -616,7 +612,14 @@ class KnowledgeGraphClient:
                 chunker_type=getattr(pipeline_settings, 'chunker_type', 'auto'),
             )
 
-            transient_pipeline = self.document_service.build_pipeline(json_pipeline_config)
+            services = DocumentPipelineServices(
+                llm_service=self.llm_service,
+                kg_service=self.knowledge_graph_service,
+                db_client=self.db_client,
+                llm_provider=self.llm_provider,
+                agent_service=self._build_csv_agent(),
+            )
+            transient_pipeline = PipelineFactory.for_file(document_path, services, config=json_pipeline_config)
 
             document = transient_pipeline.run(
                 document_path=document_path,

@@ -8,7 +8,7 @@ documents and chunks. For now it is a scaffold with method stubs.
 
 from typing import Optional, List
 from knowledge_graph.ports.document_repository import DocumentRepository
-from knowledge_graph.document.models.document import Document
+from knowledge_graph.data_structs.document import Document
 
 
 class SQLiteDocumentRepository(DocumentRepository):
@@ -30,4 +30,3 @@ class SQLiteDocumentRepository(DocumentRepository):
     def list_documents(self, *, kb_id: Optional[str] = None) -> List[str]:
         # TODO: Query documents table (optionally filtered by kb_id) and return IDs
         raise NotImplementedError
-

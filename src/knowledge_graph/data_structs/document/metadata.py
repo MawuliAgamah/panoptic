@@ -27,3 +27,4 @@ class DocumentMetadata:
     tags: List[str] = field(default_factory=list)     # User-assigned tags
     categories: List[str] = field(default_factory=list)  # Categories
     custom_fields: Dict[str, Any] = field(default_factory=dict)  # Extensible custom metadata
+

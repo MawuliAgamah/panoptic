@@ -49,75 +49,74 @@ class CsvAnalysis:
     columns: List[ColumnSummary]
 
 
-"""Note: the agent uses tools from knowledge_graph.agent.tools for file IO."""
-from knowledge_graph.agent.tools import sniff_csv, read_rows
+"""Note: the agent uses the shared tabular tools for CSV IO."""
+from knowledge_graph.document_ingestion.tabular.agents_tools import sniff_csv, read_rows
 
 
-# --- Type inference ---
+# # --- Type inference ---
 
-_DATE_PATTERNS = [
-    re.compile(r"^\d{4}-\d{2}-\d{2}$"),           # 2024-05-14
-    re.compile(r"^\d{2}/\d{2}/\d{4}$"),           # 05/14/2024
-    re.compile(r"^\d{4}/\d{2}/\d{2}$"),           # 2024/05/14
-    re.compile(r"^\d{2}-\d{2}-\d{4}$"),           # 14-05-2024
-]
-
-
-def _looks_int(s: str) -> bool:
-    try:
-        int(s)
-        return True
-    except Exception:
-        return False
+# _DATE_PATTERNS = [
+#     re.compile(r"^\d{4}-\d{2}-\d{2}$"),           # 2024-05-14
+#     re.compile(r"^\d{2}/\d{2}/\d{4}$"),           # 05/14/2024
+#     re.compile(r"^\d{4}/\d{2}/\d{2}$"),           # 2024/05/14
+#     re.compile(r"^\d{2}-\d{2}-\d{4}$"),           # 14-05-2024
+# ]
 
 
-def _looks_float(s: str) -> bool:
-    try:
-        float(s)
-        # Reject representations like 'NaN'/'inf' as numeric here
-        return not (s.lower() in ("nan", "inf", "+inf", "-inf"))
-    except Exception:
-        return False
+# def _looks_int(s: str) -> bool:
+#     try:
+#         int(s)
+#         return True
+#     except Exception:
+#         return False
 
 
-def _looks_bool(s: str) -> bool:
-    return s.strip().lower() in {"true", "false", "t", "f", "yes", "no", "0", "1"}
+# def _looks_float(s: str) -> bool:
+#     try:
+#         float(s)
+#         # Reject representations like 'NaN'/'inf' as numeric here
+#         return not (s.lower() in ("nan", "inf", "+inf", "-inf"))
+#     except Exception:
+#         return False
 
 
-def _looks_date(s: str) -> bool:
-    s = s.strip()
-    if not s:
-        return False
-    for rx in _DATE_PATTERNS:
-        if rx.match(s):
-            return True
-    return False
+# def _looks_bool(s: str) -> bool:
+#     return s.strip().lower() in {"true", "false", "t", "f", "yes", "no", "0", "1"}
 
 
-def _infer_type(values: List[str]) -> str:
-    """Infer a simple type given a sample of string values (non-nulls)."""
-    if not values:
-        return "string"
-    checks = {
-        "integer": all(_looks_int(v) for v in values),
-        "float": all(_looks_float(v) for v in values),
-        "bool": all(_looks_bool(v) for v in values),
-        "date": all(_looks_date(v) for v in values),
-    }
-    for t in ("integer", "float", "bool", "date"):
-        if checks[t]:
-            return t
-    # Mixed numeric? prefer float
-    if all(_looks_int(v) or _looks_float(v) for v in values):
-        return "float"
-    return "string"
+# def _looks_date(s: str) -> bool:
+#     s = s.strip()
+#     if not s:
+#         return False
+#     for rx in _DATE_PATTERNS:
+#         if rx.match(s):
+#             return True
+#     return False
+
+
+# def _infer_type(values: List[str]) -> str:
+#     """Infer a simple type given a sample of string values (non-nulls)."""
+#     if not values:
+#         return "string"
+#     checks = {
+#         "integer": all(_looks_int(v) for v in values),
+#         "float": all(_looks_float(v) for v in values),
+#         "bool": all(_looks_bool(v) for v in values),
+#         "date": all(_looks_date(v) for v in values),
+#     }
+#     for t in ("integer", "float", "bool", "date"):
+#         if checks[t]:
+#             return t
+#     # Mixed numeric? prefer float
+#     if all(_looks_int(v) or _looks_float(v) for v in values):
+#         return "float"
+#     return "string"
 
 
 # --- Agent ---
 
 class CsvAnalysisAgent:
     """Minimal CSV analysis agent that inspects column names and basic stats.
-
     It uses internal helper functions as "tools" to read and parse the file safely.
     """
 
@@ -310,9 +309,3 @@ def _main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(_main())
-
-
-# /Users/mawuliagamah/utilities/medical_insurance.csv
-
-# python -m knowledge_graph.agent.agent /Users/mawuliagamah/utilities/medical_insurance.csv --llm
-

@@ -19,7 +19,6 @@ from .config import (
 from .llm.kg_extractor.service import KGExtractionService
 
 # Import core services (for advanced users)
-from .document.service import DocumentService
 from .llm.service import LLMService
 from .knowledge_graph.service import KnowledgeGraphService
 from .core.db.db_client import DatabaseClient
@@ -144,7 +143,6 @@ __all__ = [
 
     # Services (for advanced users)
     "KGExtractionService",
-    "DocumentService",
     "LLMService",
     "KnowledgeGraphService",
     "DatabaseClient"

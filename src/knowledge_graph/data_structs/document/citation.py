@@ -7,3 +7,4 @@ class Citation:
 
     def __str__(self):
         return self.text
+

@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from ..document.models.document import Document
+from ..data_structs.document import Document
 from ..core.logging_utils import set_logging_context, clear_logging_context
 
 
@@ -55,8 +55,7 @@ class DocumentPipelineConfig:
     enable_persistence: bool = True
     chunk_size: int = 1000
     chunk_overlap: int = 200
-    # auto: chooses structured markdown for .md or when markdown headers are present,
-    # otherwise uses recursive text chunker. Avoids routing PDFs into markdown chunker.
+
     chunker_type: str = "auto"
 
 
@@ -68,6 +67,7 @@ class DocumentPipelineServices:
     kg_service: Optional[Any] = None
     db_client: Optional[Any] = None
     llm_provider: str = "openai"
+    agent_service: Optional[Any] = None
 
 
 class PipelineStep:

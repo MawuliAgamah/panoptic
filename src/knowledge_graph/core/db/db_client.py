@@ -1,6 +1,6 @@
-from ...document.models.document import Document
-from ...document.models.metadata import DocumentMetadata
-from ...document.models.chunk import TextChunk, ChunkMetadata
+from ...data_structs.document import Document
+from ...data_structs.document import DocumentMetadata
+from ...data_structs.document import TextChunk, ChunkMetadata
 from .neo4j.service import Neo4jService
 from datetime import datetime
 from typing import Optional, Dict, Any

@@ -105,10 +105,6 @@ async def extract_knowledge_graph(
     try:
         processed_id = client.add_document(
             document_path=temp_path,
-            document_id=document_id,
-            document_type=None,
-            domain=domain,
-            tags=tag_list,
         )
 
         graph_snapshot = client.get_graph_snapshot(document_id=processed_id)
@@ -137,7 +133,7 @@ async def extract_knowledge_graph(
     return {
         "success": True,
         "message": f"Knowledge graph extracted from {file.filename}",
-        "document_id": document_id,
+        "document_id": processed_id,
         "filename": file.filename,
         "content_type": file.content_type,
         "kg_data": kg_data,
@@ -151,8 +147,6 @@ async def extract_knowledge_graph(
 async def upload_csv_document(
     file: UploadFile = File(...),
     document_id: Optional[str] = Form(None),
-    domain: Optional[str] = Form("general"),
-    tags: Optional[str] = Form("[]"),
     client: KnowledgeGraphClient = Depends(get_kg_client),
 ):
     """Upload a CSV file, build a knowledge graph via the CSV pipeline route, and return a snapshot."""
@@ -180,10 +174,10 @@ async def upload_csv_document(
         tmp.write(content)
     logger.info("[csv] Saved CSV to %s (%d bytes)", temp_path, len(content))
 
+    # Parse tags from JSON string
     try:
-        processed_id = client.add_document(document_path=temp_path,document_type="csv")
-        client = client.upload_file(file=file_path)
-        # snapshot = client.get_graph_snapshot(document_id=processed_id)
+        processed_id = client.upload_file(temp_path)
+        snapshot = client.get_graph_snapshot(document_id=processed_id)
     finally:
         try:
             os.remove(temp_path)
@@ -207,7 +201,7 @@ async def upload_csv_document(
     return {
         "success": True,
         "message": f"CSV ingested: {fname}",
-        "document_id": document_id,
+        "document_id": processed_id,
         "filename": fname,
         "content_type": file.content_type,
         "entity_count": len(snapshot.get("nodes", [])),
@@ -256,10 +250,6 @@ async def extract_knowledge_graph_bulk(
 
                 processed_id = client.add_document(
                     document_path=temp_path,
-                    document_id=doc_id,
-                    document_type=None,
-                    domain=domain,
-                    tags=tag_list,
                 )
 
                 elapsed_ms = int((time.time() - start_ts) * 1000)

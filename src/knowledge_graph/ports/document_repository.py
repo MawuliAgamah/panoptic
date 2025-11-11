@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional, List
 
-from knowledge_graph.document.models.document import Document
+from knowledge_graph.data_structs.document import Document
 
 
 class DocumentRepository(ABC):
@@ -28,4 +28,3 @@ class DocumentRepository(ABC):
     @abstractmethod
     def list_documents(self, *, kb_id: Optional[str] = None) -> List[str]:
         """List document identifiers (optionally filtered by knowledge base)."""
-
