@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional, List
 
-from knowledge_graph.data_structs.document import Document
+from ..data_structs.document import Document
 
 
 class DocumentRepository(ABC):

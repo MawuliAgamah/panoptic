@@ -15,12 +15,15 @@ from ..config import (
     AuthCredentials
 )
 from ..data_structs.knowledge_base import KnowledgeBase
-from ..persistence.sqlite.knowledge_base_repository import SQLiteKnowledgeBaseRepository
+
 from ..persistence.json.knowledge_base_repository import JSONKnowledgeBaseRepository
+from ..persistence.sqlite.knowledge_graph.knowledge_base_repository import (
+    SQLiteKnowledgeBaseRepository,
+)
 import json as _json
 import re as _re
 import os as _os
-from knowledge_graph.settings.settings import Settings
+from ..settings.settings import Settings
 
 
 class KnowledgeGraphClient:
@@ -30,13 +33,22 @@ class KnowledgeGraphClient:
     
     def __init__(
         self,
-        settings: Settings
-        ):
-        """
-        Initialize the Knowledge Graph Client.
+        *,
+        config: Optional[Union[KnowledgeGraphConfig, Dict[str, Any]]] = None,
+        # legacy/new alternate params
+        graph_db_config: Optional[Dict[str, Any]] = None,
+        db_config: Optional[Union[Dict[str, Any], str]] = None,
+        llm_config: Optional[Dict[str, Any]] = None,
+        log_level: str = "INFO",
+        max_connections: Optional[int] = None,
+        timeout: Optional[int] = None,
+        # knowledge base store selection
+        kb_store_backend: Optional[str] = None,
+        kb_store_location: Optional[str] = None,
+    ):
+        """Initialize the Knowledge Graph Client.
 
-        Args:
-            settings: Settings object
+        Supports both a rich `config` object/dict and legacy split parameters.
         """
 
         # Handle configuration - support both new and legacy approaches

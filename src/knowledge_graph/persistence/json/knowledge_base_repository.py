@@ -7,8 +7,8 @@ import json
 import uuid
 import logging
 
-from knowledge_graph.ports.knowledge_base import KnowledgeBaseRepository
-from knowledge_graph.data_structs.knowledge_base import KnowledgeBase
+from ...ports.knowledge_base import KnowledgeBaseRepository
+from ...data_structs.knowledge_base import KnowledgeBase
 
 
 class JSONKnowledgeBaseRepository(KnowledgeBaseRepository):

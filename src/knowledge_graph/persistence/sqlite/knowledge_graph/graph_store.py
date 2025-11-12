@@ -7,8 +7,8 @@ knowledge graphs and build snapshots. For now it provides method stubs.
 """
 
 from typing import Optional, Dict, Any
-from knowledge_graph.ports.graph_repository import GraphStore
-from knowledge_graph.core.db.sql_lite.repository import SqlLiteRepository
+from ....ports.graph_repository import GraphStore
+from ....core.db.sql_lite.repository import SqlLiteRepository
 
 
 class SQLiteGraphStore(GraphStore):

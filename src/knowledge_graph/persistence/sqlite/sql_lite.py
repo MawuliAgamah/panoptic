@@ -9,7 +9,7 @@ corresponding ports.
 
 from typing import Optional
 
-from knowledge_graph.core.db.sql_lite.repository import SqlLiteRepository
+from ...core.db.sql_lite.repository import SqlLiteRepository
 from .document.document_repository import SQLiteDocumentRepository
 from .knowledge_graph.graph_store import SQLiteGraphStore
 from .entity_resolution.entity_resolution_store import SQLiteEntityResolutionStore
@@ -19,31 +19,27 @@ class SqlLite:
     def __init__(self, settings: Settings):
         # Underlying repository also ensures schema on init
         repo = SqlLiteRepository(settings.db_path)
-        self._repo = repo
         self.db_path = repo.db_path
 
     # Schema management -------------------------------------------------
-    def create_database(self) -> None:
-        """Ensure database file exists and base tables are created."""
-        # SqlLiteRepository.__init__ already creates tables; call again to be explicit
-        try:
-            self._repo._initialize_database()  # type: ignore[attr-defined]
-        except Exception:
-            # Fallback: instantiate a fresh repository to trigger initialization
-            SqlLiteRepository(self.db_path)
-
     def create_tables(self) -> None:
-        """Alias for create_database for semantic clarity."""
-        self.create_database()
-
-    def create_indexes(self) -> None:
-        """No extra indexes beyond schema defaults for documents/KG currently."""
-        # Index creation for knowledge bases lives in its repository.migrations.
-        return None
+        """Ensure database file exists and base tables are created."""
+        try:
+           knowledge_base_repository.create_table()
+           document_repository.create_table()
+           tabular_document_repository.create_table()
+           ontology_repository.create_table()
+           
+        except Exception as e:
+            logger.error(f"Error creating tables: {e}")
+            raise
 
     # Adapters ----------------------------------------------------------
     def document_repository(self) -> SQLiteDocumentRepository:
         return SQLiteDocumentRepository(self.db_path)
+    
+    def tabular_document_repository(self) -> SQLiteTabularDocumentRepository:
+        return SQLiteTabularDocumentRepository(self.db_path)
 
     def graph_store(self) -> SQLiteGraphStore:
         return SQLiteGraphStore(self.db_path)

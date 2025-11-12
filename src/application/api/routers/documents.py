@@ -10,7 +10,6 @@ import tempfile
 import time
 import logging
 
-from knowledge_graph.api.client import KnowledgeGraphClient
 from application.api.deps import get_kg_client
 
 router = APIRouter(tags=["documents"])
@@ -66,7 +65,7 @@ async def upload_document(
     file: UploadFile = File(...),
     document_id: Optional[str] = Form(None),
     knowledgebase_id: Optional[str] = Form(None),
-    client: KnowledgeGraphClient = Depends(get_kg_client),
+    client = Depends(get_kg_client),
 ):
     """Upload a document and (optionally) associate it with a knowledge base.
 
@@ -119,7 +118,7 @@ async def upload_document(
 @router.delete("/api/documents/{document_id}")
 async def delete_document(
     document_id: str,
-    client: KnowledgeGraphClient = Depends(get_kg_client),
+    client = Depends(get_kg_client),
 ):
     """Delete a document and its graph data."""
     client.delete_document(document_id)
@@ -136,7 +135,7 @@ async def extract_knowledge_graph(
     document_id: Optional[str] = Form(None),
     domain: Optional[str] = Form("general"),
     tags: Optional[str] = Form("[]"),
-    client: KnowledgeGraphClient = Depends(get_kg_client),
+    client = Depends(get_kg_client),
 ):
     """Extract knowledge graph from uploaded document (generic)."""
 
@@ -206,7 +205,7 @@ async def extract_knowledge_graph(
 async def upload_csv_document(
     file: UploadFile = File(...),
     document_id: Optional[str] = Form(None),
-    client: KnowledgeGraphClient = Depends(get_kg_client),
+    client = Depends(get_kg_client),
 ):
     """Upload a CSV file, build a knowledge graph via the CSV pipeline route, and return a snapshot."""
     # Validate file looks like CSV

@@ -57,16 +57,14 @@ except Exception:
 
 from contextlib import asynccontextmanager
 from knowledge_graph import create_client
-from knowledge_graph.settings.settings import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create a single KnowledgeGraphClient for this process and close it on shutdown."""
-    app.state.kg_client = create_client(settings=settings)
+    """Create a single KnowledgeGraphClient and close it on shutdown (no bootstrap)."""
+    app.state.kg_client = create_client()
     try:
         yield
     finally:
-        # Be defensive in case close is missing or already closed
         try:
             app.state.kg_client.close()
         except Exception:

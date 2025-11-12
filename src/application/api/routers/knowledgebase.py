@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List
 
-from knowledge_graph.api.client import KnowledgeGraphClient
 from ..deps import get_kg_client
 
 
@@ -20,7 +19,7 @@ class CreateKnowledgeBaseRequest(BaseModel):
 @router.post("/api/knowledgebases")
 def create_knowledgebase(
     payload: CreateKnowledgeBaseRequest,
-    client: KnowledgeGraphClient = Depends(get_kg_client),
+    client = Depends(get_kg_client),
 ):
     """Create a new knowledge base (idempotent on owner_id+slug)."""
     handle = client.create_knowledgebase(
@@ -44,7 +43,7 @@ def create_knowledgebase(
 def get_knowledgebase(
     id_or_name: str,
     owner_id: Optional[str] = Query(default=None),
-    client: KnowledgeGraphClient = Depends(get_kg_client),
+    client = Depends(get_kg_client),
 ):
     """Get a knowledge base by id, slug, or exact name."""
     try:
@@ -67,9 +66,8 @@ def get_knowledgebase(
 @router.get("/api/knowledgebases")
 def list_knowledgebases(
     owner_id: Optional[str] = Query(default=None),
-    client: KnowledgeGraphClient = Depends(get_kg_client),
+    client = Depends(get_kg_client),
 ):
     """List all knowledge bases, optionally filtered by owner_id."""
     items = client.list_knowledgebases(owner_id=owner_id)
     return {"items": [it.model_dump() for it in items], "count": len(items)}
-

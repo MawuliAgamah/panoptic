@@ -5,7 +5,6 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import logging
 
-from knowledge_graph.api.client import KnowledgeGraphClient
 from knowledge_graph.entity_resolution import EntityResolutionService
 from knowledge_graph.entity_resolution import persist as er_persist
 from application.api.deps import get_kg_client
@@ -28,7 +27,7 @@ class ERRunPayload(BaseModel):
 @router.get("/api/graph")
 async def get_graph_snapshot(
     document_id: Optional[str] = None,
-    client: KnowledgeGraphClient = Depends(get_kg_client),
+    client = Depends(get_kg_client),
 ):
     return client.get_graph_snapshot(document_id=document_id)
 
@@ -36,7 +35,7 @@ async def get_graph_snapshot(
 @router.post("/api/entity-resolution/run")
 async def run_entity_resolution(
     payload: ERRunPayload,
-    client: KnowledgeGraphClient = Depends(get_kg_client),
+    client = Depends(get_kg_client),
 ):
     svc = EntityResolutionService(client.db_client)
     stats = svc.resolve(
@@ -57,7 +56,7 @@ async def run_entity_resolution(
 @router.get("/api/graph/resolved")
 async def get_resolved_graph(
     doc_ids: Optional[str] = None,
-    client: KnowledgeGraphClient = Depends(get_kg_client),
+    client = Depends(get_kg_client),
 ):
     ids_list: Optional[List[str]] = None
     if doc_ids:

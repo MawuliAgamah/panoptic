@@ -7,10 +7,10 @@ documents and chunks. For now it is a scaffold with method stubs.
 """
 
 from typing import Optional, List
-from knowledge_graph.ports.document_repository import DocumentRepository
-from knowledge_graph.data_structs.document import Document
-from knowledge_graph.core.db.sql_lite.repository import SqlLiteRepository
-from knowledge_graph.core.db.db_client import DatabaseClient
+from ....ports.document_repository import DocumentRepository
+from ....data_structs.document import Document
+from ....core.db.sql_lite.repository import SqlLiteRepository
+from ....core.db.db_client import DatabaseClient
 import sqlite3
 
 class SQLiteDocumentRepository(DocumentRepository):
@@ -18,24 +18,20 @@ class SQLiteDocumentRepository(DocumentRepository):
         # Ensure schema via underlying repository
         self._repo = SqlLiteRepository(db_path)
         self.db_path = self._repo.db_path
+        self.tabular_document_repository = SQLiteTabularDocumentRepository(db_path)
 
     def save_document(self, document: Document) -> bool:
-        return self._repo.save_document(document)
-
-    def get_document(self, document_id: str) -> Optional[Document]:
-        # Reuse DatabaseClient rehydration logic to avoid duplication
-        dc = DatabaseClient(
-            graph_db_config=None,
-            cache_db_config={"db_type": "sqlite", "db_location": self.db_path},
-        )
-        try:
-            return dc.get_document(document_id)
-        finally:
-            dc.close()
+        if document.file_type == "csv":
+            return self._repo.save_csv_profile(document)
+        else:
+            return self._repo.save_document(document)
+    
+    def update_document(self, document: Document) -> bool:
+        return self._repo.update_document(document)
 
     def delete_document(self, document_id: str) -> bool:
         return self._repo.delete_document(document_id)
-
+    
     def list_documents(self, *, kb_id: Optional[str] = None) -> List[str]:
         # Current schema has no kb_id; return all document IDs
         with sqlite3.connect(self.db_path) as conn:

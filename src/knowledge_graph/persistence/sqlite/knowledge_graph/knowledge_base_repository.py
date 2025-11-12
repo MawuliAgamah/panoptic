@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Optional, List
 import logging
-from knowledge_graph.ports.knowledge_base import KnowledgeBaseRepository
-from knowledge_graph.data_structs.knowledge_base import KnowledgeBase
+from ....ports.knowledge_base import KnowledgeBaseRepository
+from ....data_structs.knowledge_base import KnowledgeBase
 import sqlite3
 from datetime import datetime
 import uuid
-
+from logger_config import logger
 
 class SQLiteKnowledgeBaseRepository(KnowledgeBaseRepository):
     """SQLite implementation of KnowledgeBaseRepository.
@@ -19,6 +19,21 @@ class SQLiteKnowledgeBaseRepository(KnowledgeBaseRepository):
         self.db_path = db_path
         self._ensure_schema()
         self._logger = logging.getLogger("knowledge_graph.persistence.sqlite.kb")
+    
+    def create_tables(self) -> bool:
+        logger.info("Creating Knowledge Base, Entities, Relationships, Document Ontology, Knowledge Base Ontology tables if they don't exist")
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.cursor()
+            cur.execute(CREATE_KNOWLEDGE_BASES_TABLE)
+            cur.execute(CREATE_ENTITIES_TABLE)
+            cur.execute(CREATE_RELATIONSHIPS_TABLE)
+            cur.execute(CREATE_DOCUMENT_ONTOLOGY_TABLE)
+            cur.execute(CREATE_KNOWLEDGE_BASE_ONTOLOGY_TABLE)
+            conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error creating table: {e}")
+            return False
 
     def create(self, name: str, slug: str, *, owner_id: Optional[str] = None, description: Optional[str] = None) -> KnowledgeBase:
         self._logger.info(f"KB(create) sqlite slug={slug} owner_id={owner_id or '-'}")

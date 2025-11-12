@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional, List
 
-from knowledge_graph.data_structs.knowledge_base import KnowledgeBase
+from ..data_structs.knowledge_base import KnowledgeBase
 
 
 class KnowledgeBaseRepository(ABC):
@@ -28,4 +28,3 @@ class KnowledgeBaseRepository(ABC):
     @abstractmethod
     def list(self, *, owner_id: Optional[str] = None) -> List[KnowledgeBase]:
         """List knowledge bases (optionally filtered by owner)."""
-

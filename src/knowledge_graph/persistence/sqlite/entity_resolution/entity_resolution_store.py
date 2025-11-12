@@ -8,9 +8,9 @@ method stubs with the correct signatures.
 """
 
 from typing import Optional, List, Tuple, Any
-from knowledge_graph.ports.entity_resolution_store import EntityResolutionStore
-from knowledge_graph.core.db.db_client import DatabaseClient
-from knowledge_graph.entity_resolution import persist as er_persist
+from ....ports.entity_resolution_store import EntityResolutionStore
+from ....core.db.db_client import DatabaseClient
+from ....entity_resolution import persist as er_persist
 
 
 class SQLiteEntityResolutionStore(EntityResolutionStore):
