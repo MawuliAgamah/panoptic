@@ -8,18 +8,6 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-from .settings.settings import BaseAppSettings
-
-def get_app_settings() -> BaseAppSettings:
-    return BaseAppSettings()
-
-def create_db_client(settings: BaseAppSettings) -> DatabaseClient:
-    return DatabaseClient(settings)
-
-# Create a single settings instance for the application
-settings = get_app_settings()
-# Create a single database client for the applicaiton 
-db = create_db_client(settings)
 
 
 @dataclass

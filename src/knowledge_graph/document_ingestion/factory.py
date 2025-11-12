@@ -56,7 +56,7 @@ class PipelineFactory:
             GenerateMappingFromOntologyStep(enabled=True),
             BindAttributesFromOntologyStep(enabled=True),
             PopulateMissingPrimaryKeysStep(enabled=True),
-            # PersistDocumentStep(services.db_client, enabled=cfg.enable_persistence and services.db_client is not None)
+            PersistDocumentStep(services.db_client, enabled=cfg.enable_persistence and services.db_client is not None)
         ]
         return DocumentPipeline(services=services, config=cfg, steps=steps)
 

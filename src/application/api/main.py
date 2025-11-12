@@ -56,13 +56,13 @@ except Exception:
     logging.basicConfig(level=logging.INFO)
 
 from contextlib import asynccontextmanager
-from knowledge_graph import create_json_client
-
+from knowledge_graph import create_client
+from knowledge_graph.settings.settings import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Create a single KnowledgeGraphClient for this process and close it on shutdown."""
-    app.state.kg_client = create_json_client()
+    app.state.kg_client = create_client(settings=settings)
     try:
         yield
     finally:

@@ -73,43 +73,6 @@ class DatabaseClient:
             from knowledge_graph.core.db.sql_lite.service import SQLLiteService
             self.sqlite_service = SQLLiteService(db_path="cache.db")
             logger.info("Fallback SQLite service configured")
-
-    def _configure_databases_legacy(self, db_config):
-        """Configure SQLite for caching and optionally Neo4j for knowledge graphs (legacy method)"""
-
-        # Always configure SQLite for document/chunk caching
-        if db_config.get('db_type') == 'sqlite' or 'db_location' in db_config:
-            from knowledge_graph.core.db.sql_lite.service import SQLLiteService
-            sqlite_path = db_config.get('db_location', 'cache.db')
-            self.sqlite_service = SQLLiteService(db_path=sqlite_path)
-            logger.info(f"SQLite service configured at: {sqlite_path}")
-
-        # Configure knowledge graph storage based on db_type
-        graph_db_type = db_config.get('db_type')
-
-        if graph_db_type == 'neo4j':
-            # Neo4j for knowledge graphs
-            try:
-                self.neo4j_service = Neo4jService(db_config)
-                self.graph_db_type = 'neo4j'
-                logger.info("Neo4j service configured for knowledge graphs")
-            except Exception as e:
-                logger.warning(f"Neo4j service configuration failed: {e}. Knowledge graph features will be unavailable.")
-                self.neo4j_service = None
-
-        elif graph_db_type == 'sqlite':
-            self.graph_db_type = 'sqlite'
-            logger.info("Using SQLite for knowledge graph storage")
-        else:
-            logger.warning(f"Unknown or unsupported db_type: {graph_db_type}. Knowledge graph features will be unavailable.")
-
-        # Ensure we have at least SQLite for caching
-        if not self.sqlite_service:
-            # Fallback SQLite configuration
-            from knowledge_graph.core.db.sql_lite.service import SQLLiteService
-            self.sqlite_service = SQLLiteService(db_path="cache.db")
-            logger.info("Fallback SQLite service configured")
-        
     
     # Document operations (SQLite)
     def save_document(self, document):
@@ -287,26 +250,8 @@ class DatabaseClient:
             return []
         return self.neo4j_service.get_document_entities(document_id)
 
-    def get_document_relationships(self, document_id):
-        """Get all relationships for a document from Neo4j"""
-        if not self.neo4j_service:
-            logger.warning("Neo4j service not available")
-            return []
-        return self.neo4j_service.get_document_relationships(document_id)
 
-    def search_entities(self, search_term, limit=10):
-        """Search entities across knowledge graph"""
-        if not self.neo4j_service:
-            logger.warning("Neo4j service not available")
-            return []
-        return self.neo4j_service.search_entities(search_term, limit)
 
-    def get_entity_connections(self, entity_name, depth=1):
-        """Get connections for an entity"""
-        if not self.neo4j_service:
-            logger.warning("Neo4j service not available")
-            return []
-        return self.neo4j_service.get_entity_connections(entity_name, depth)
 
     def get_graph_statistics(self):
         """Get knowledge graph statistics"""

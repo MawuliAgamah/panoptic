@@ -141,7 +141,7 @@ class DocumentPipeline:
                     logger.debug("Skipping disabled step '%s'", step.name)
                     continue
 
-                logger.info("→ Running pipeline step '%s'", step.name)
+                logger.info("Executing Document Ingestion Pipeline Step: '%s'", step.name)
                 try:
                     start_ts = time.time()
                     context = step.run(context)

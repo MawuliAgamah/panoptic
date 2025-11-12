@@ -20,6 +20,7 @@ from ..persistence.json.knowledge_base_repository import JSONKnowledgeBaseReposi
 import json as _json
 import re as _re
 import os as _os
+from knowledge_graph.settings.settings import Settings
 
 
 class KnowledgeGraphClient:
@@ -29,29 +30,13 @@ class KnowledgeGraphClient:
     
     def __init__(
         self,
-        config: Optional[Union[KnowledgeGraphConfig, Dict]] = None,
-        graph_db_config: Optional[Union[Dict, GraphDatabaseConfig]] = None,
-        auth_credentials: Optional[Union[Dict, AuthCredentials]] = None,
-        db_config: Optional[Union[Dict, str]] = None,
-        log_level: str = "INFO",
-        llm_config: Optional[Dict] = None,
-        models: Optional[Dict[str, str]] = None,
-        embedding_dimension: int = 768,
-        max_connections: int = 10,
-        timeout: int = 30,
-        kb_store_backend: Optional[str] = None,  # "sqlite" | "json" | None (auto)
-        kb_store_location: Optional[str] = None,  # path to SQLite DB file or JSON file
-    ):
+        settings: Settings
+        ):
         """
         Initialize the Knowledge Graph Client.
 
         Args:
-            config: New KnowledgeGraphConfig object or dict
-            graph_db_config: Legacy graph database config (for backward compatibility)
-            db_config: Legacy cache database config (for backward compatibility)
-            llm_config: Legacy LLM config (for backward compatibility)
-            log_level: Logging level
-            **kwargs: Additional legacy parameters
+            settings: Settings object
         """
 
         # Handle configuration - support both new and legacy approaches
@@ -110,25 +95,7 @@ class KnowledgeGraphClient:
                 self._kb_repo = JSONKnowledgeBaseRepository(json_path)
                 self.logger.info(f"KB repo initialized (json, explicit): {json_path}")
 
-            # 2) From config (prefer explicit kb_db, then sqlite cache/graph)
-            if self._kb_repo is None:
-                db_path_cfg: Optional[str] = None
-                try:
-                    # Dedicated KB DB if provided
-                    if self.config and getattr(self.config, "kb_db", None) and (self.config.kb_db.db_type or "").lower() == "sqlite":
-                        db_path_cfg = self.config.kb_db.db_location
-                    # Fall back to cache_db sqlite
-                    if self.config and self.config.cache_db and (self.config.cache_db.db_type or "").lower() == "sqlite":
-                        db_path_cfg = self.config.cache_db.db_location
-                    # Finally, graph_db sqlite
-                    if (not db_path_cfg) and self.config and (self.config.graph_db.db_type or "").lower() == "sqlite":
-                        db_path_cfg = self.config.graph_db.db_location
-                except Exception:
-                    db_path_cfg = None
-                if db_path_cfg:
-                    self._ensure_parent_dir(db_path_cfg)
-                    self._kb_repo = SQLiteKnowledgeBaseRepository(db_path_cfg)
-                    self.logger.info(f"KB repo initialized (sqlite, config): {db_path_cfg}")
+            
 
             # 3) From DatabaseClient sqlite service
             if self._kb_repo is None:
@@ -230,36 +197,10 @@ class KnowledgeGraphClient:
         # Client-specific logger for convenience
         self.logger = kg_logger
     
-    def _setup_cache_directory(self, cache_config: Optional[Union[Dict, str]]) -> str:
-        """Set up and validate the cache directory."""
-        import os
-        import tempfile
-        
-        # If cache_config is a string, use it as directory path
-        if isinstance(cache_config, str):
-            if os.path.exists(cache_config):
-                return cache_config
-            else:
-                try:
-                    os.makedirs(cache_config, exist_ok=True)
-                    return cache_config
-                except Exception as e:
-                    self.logger.warning(f"Failed to create cache directory {cache_config}: {e}")
-                    
-        # If cache_config is a dict, extract location
-        elif isinstance(cache_config, dict) and "cache_location" in cache_config:
-            location = cache_config["cache_location"]
-            if os.path.exists(os.path.dirname(location)):
-                return os.path.dirname(location)
-        
-        # Default to system temp directory
-        default_dir = os.path.join(tempfile.gettempdir(), "knowledgeAgent_cache")
-        os.makedirs(default_dir, exist_ok=True)
-        self.logger.info(f"Using default cache directory: {default_dir}")
-        return default_dir
+
     
     def _initialize_database_connection(self):
-        """Establish connection to both cache and graph databases."""
+
         # Prepare configurations for DatabaseClient
         graph_db_config = self.config.graph_db.__dict__
         cache_db_config = self.config.cache_db.__dict__ if self.config.cache_db else None
