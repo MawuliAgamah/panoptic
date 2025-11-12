@@ -57,6 +57,65 @@ async def list_registered_documents():
     }
 
 
+"""Simple in-memory mapping of KB -> documents for association demos."""
+knowledgebase_documents: Dict[str, List[str]] = {}
+
+
+@router.post("/api/documents/upload")
+async def upload_document(
+    file: UploadFile = File(...),
+    document_id: Optional[str] = Form(None),
+    knowledgebase_id: Optional[str] = Form(None),
+    client: KnowledgeGraphClient = Depends(get_kg_client),
+):
+    """Upload a document and (optionally) associate it with a knowledge base.
+
+    Returns the pipeline-generated document id as `document_id`.
+    """
+    logger.info("Uploading document: %s", file.filename)
+
+    # Save to a temporary file to pass a path to the pipeline
+    import uuid as _uuid, os, tempfile
+    tmp_dir = tempfile.gettempdir()
+    tmp_path = os.path.join(tmp_dir, f"upload_{_uuid.uuid4().hex}_{file.filename}")
+    content = await file.read()
+    with open(tmp_path, "wb") as tmp:
+        tmp.write(content)
+
+    processed_id: Optional[str] = None
+    try:
+        # Ingest using the convenience method, which returns the processed id
+        processed_id = client.upload_file(tmp_path)
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+    if not processed_id:
+        return {"success": False, "message": "Upload failed"}
+
+    # Link to KB (in-memory demo association)
+    if knowledgebase_id:
+        knowledgebase_documents.setdefault(knowledgebase_id, [])
+        if processed_id not in knowledgebase_documents[knowledgebase_id]:
+            knowledgebase_documents[knowledgebase_id].append(processed_id)
+        logger.info(
+            "Associated document with KB",
+            extra={"kb_id": knowledgebase_id, "document_id": processed_id},
+        )
+
+    return {
+        "success": True,
+        "message": "Document uploaded successfully",
+        "document_id": processed_id,  # pipeline id
+        "submitted_document_id": document_id,
+        "knowledgebase_id": knowledgebase_id,
+        "filename": file.filename,
+        "content_type": file.content_type,
+    }
+
+
 @router.delete("/api/documents/{document_id}")
 async def delete_document(
     document_id: str,

@@ -25,16 +25,11 @@ import os as _os
 class KnowledgeGraphClient:
     """
     Main client interface for interacting with Knowledge Graphs.
-    Handles document processing, entity extraction, and graph operations.
-
-    Supports both new unified configuration and legacy configuration for backward compatibility.
-    Integrates with kggen for advanced knowledge graph extraction.
     """
     
     def __init__(
         self,
         config: Optional[Union[KnowledgeGraphConfig, Dict]] = None,
-        # Legacy parameters for backward compatibility
         graph_db_config: Optional[Union[Dict, GraphDatabaseConfig]] = None,
         auth_credentials: Optional[Union[Dict, AuthCredentials]] = None,
         db_config: Optional[Union[Dict, str]] = None,
@@ -44,7 +39,6 @@ class KnowledgeGraphClient:
         embedding_dimension: int = 768,
         max_connections: int = 10,
         timeout: int = 30,
-        # Knowledge base store selection (optional)
         kb_store_backend: Optional[str] = None,  # "sqlite" | "json" | None (auto)
         kb_store_location: Optional[str] = None,  # path to SQLite DB file or JSON file
     ):
@@ -264,7 +258,6 @@ class KnowledgeGraphClient:
         self.logger.info(f"Using default cache directory: {default_dir}")
         return default_dir
     
-    
     def _initialize_database_connection(self):
         """Establish connection to both cache and graph databases."""
         # Prepare configurations for DatabaseClient
@@ -286,7 +279,6 @@ class KnowledgeGraphClient:
             self.logger.error(f"Failed to initialize database connection: {e}")
             raise ValueError(f"Invalid database configuration: {e}")
     
-
     def _initialize_services(self) -> None:
         """Initialize all required services."""
         from ..llm.service import LLMService
@@ -377,9 +369,9 @@ class KnowledgeGraphClient:
             self.logger.exception("Failed to delete document %s", document_id)
         self.logger.info(f"Document deleted with ID: {document_id}")
 
-    # -------------------------------
+    # -------------------------------------------------------------- 
     # Knowledge Base operations (JSON-backed registry)
-    # -------------------------------
+    # --------------------------------------------------------------
 
     class KnowledgeBaseHandle:
         """A lightweight handle bound to a specific knowledge base.
@@ -712,7 +704,6 @@ class KnowledgeGraphClient:
             }
 
 
-    
     # Query Operations
     def query(self, query_text: str, graph_id: Optional[str] = None) -> Dict[str, Any]:
         """

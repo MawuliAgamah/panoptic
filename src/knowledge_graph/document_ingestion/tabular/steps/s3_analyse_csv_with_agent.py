@@ -34,13 +34,15 @@ class AnalyseCsvWithAgentStep(PipelineStep):
             )
             setattr(context, "agent_analysis_text", analysis_text)
 
-
-            logger.info("%s: agent analysis preview (first %d chars):\n%s%s", document.id,analysis_text)
-        
+            # Truncated preview logging
+            max_chars = int(os.getenv("KG_AGENT_ANALYSIS_LOG_MAX", "2000") or 2000)
+            snippet = (analysis_text or "")[:max_chars]
+            more = "" if not analysis_text or len(analysis_text) <= max_chars else f"\n… (+{len(analysis_text) - max_chars} more chars)"
+            logger.info("%s: agent analysis preview (first %d chars):\n%s%s", document.id, max_chars, snippet, more)
 
             context.results[self.name] = {
                 "ok": True,
-                "chars": len(analysis_text),
+                "chars": len(analysis_text or ""),
                 "sample_rows": self.sample_rows,
             }
         except Exception as exc:

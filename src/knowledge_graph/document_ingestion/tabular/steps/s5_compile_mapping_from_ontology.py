@@ -131,10 +131,10 @@ class GenerateMappingFromOntologyStep(PipelineStep):
         super().__init__(enabled=enabled)
 
     def should_run(self, context: DocumentPipelineContext) -> bool:
-        return self.enabled and hasattr(context, "ontology_spec") and bool(getattr(context, "ontology_spec", None))
+        return self.enabled and bool(getattr(context, "ontology_specification", None))
 
     def run(self, context: DocumentPipelineContext) -> DocumentPipelineContext:
-        ontology: Dict[str, Any] = getattr(context, "ontology_spec", {}) or {}
+        ontology: Dict[str, Any] = getattr(context, "ontology_specification", {}) or {}
         profile = getattr(context, "csv_profile", None)
         headers = getattr(profile, "headers_original", []) if profile else []
         headers_lc, norm_map = _norm_headers(headers)

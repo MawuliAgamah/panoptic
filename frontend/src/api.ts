@@ -7,7 +7,7 @@ export const showFileInput = ref(false)
 export const selectedFile = ref<File | null>(null)
 export const fileInput = ref<HTMLInputElement | null>(null)
 
-const BASE_URL = 'http://127.0.0.1:8001'
+const API_BASE_URL = (import.meta as any).env?.VITE_BACKEND_URL ?? 'http://127.0.0.1:8001'
 
 
 
@@ -21,7 +21,7 @@ export const testEcho = async () => {
             test_data: { key1: "value1", key2: 123 }
         }
         
-        const response = await fetch(`${BASE_URL}/api/echo`, {
+        const response = await fetch(`${API_BASE_URL}/api/echo`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -76,7 +76,7 @@ export const uploadSelectedFile = async () => {
         formData.append('tags', JSON.stringify(['frontend', 'test'])) // Server expects JSON string
         formData.append('document_id', `test_${Date.now()}`) // Add document ID
         
-        const response = await fetch(`${BASE_URL}/api/extract-kg`, {
+        const response = await fetch(`${API_BASE_URL}/api/extract-kg`, {
             method: 'POST',
             body: formData
         })
@@ -107,4 +107,61 @@ export const uploadSelectedFile = async () => {
         lastError.value = `File upload failed: ${error}`
         console.error('Upload error:', error)
     }
+}
+
+// Knowledgebase API
+export interface CreateKnowledgebasePayload {
+  name: string
+  owner_id?: string
+  description?: string
+}
+
+export interface KnowledgebaseModel {
+  id: string
+  name: string
+  slug?: string
+  owner_id?: string
+  description?: string
+}
+
+export async function createKnowledgebase(payload: CreateKnowledgebasePayload): Promise<KnowledgebaseModel> {
+  const res = await fetch(`${API_BASE_URL}/api/knowledgebases`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  if (!res.ok) {
+    throw new Error(`Failed to create knowledgebase: ${res.status} ${res.statusText}`)
+  }
+  const data = await res.json() as { success: boolean; knowledgebase: KnowledgebaseModel }
+  return data.knowledgebase
+}
+
+export interface UploadDocumentResult {
+  success: boolean
+  message?: string
+  document_id?: string // pipeline id
+  submitted_document_id?: string
+  knowledgebase_id?: string
+  filename?: string
+  content_type?: string
+}
+
+export async function uploadDocument(
+  file: File,
+  opts: { document_id?: string; knowledgebase_id?: string } = {}
+): Promise<UploadDocumentResult> {
+  const form = new FormData()
+  form.append('file', file, file.name)
+  if (opts.document_id) form.append('document_id', opts.document_id)
+  if (opts.knowledgebase_id) form.append('knowledgebase_id', opts.knowledgebase_id)
+
+  const res = await fetch(`${API_BASE_URL}/api/documents/upload`, {
+    method: 'POST',
+    body: form
+  })
+  if (!res.ok) {
+    throw new Error(`Upload failed: ${res.status} ${res.statusText}`)
+  }
+  return await res.json() as UploadDocumentResult
 }

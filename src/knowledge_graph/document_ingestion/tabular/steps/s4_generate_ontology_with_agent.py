@@ -23,7 +23,7 @@ class GenerateOntologyWithAgentStep(PipelineStep):
         try:
             analysis_text = getattr(context, "agent_analysis_text", "")
             ontology = generate_ontology_from_analysis(analysis_text)
-            setattr(context, "ontology", ontology)
+            setattr(context, "ontology_specification", ontology)
             logger.info("%s: ontology generated", context.document.id)
             logger.info("%s: ontology: %s", context.document.id, json.dumps(ontology, indent=2))
             context.results[self.name] = {

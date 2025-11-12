@@ -16,9 +16,12 @@ from .pdf.steps import (
 
 from .tabular.steps import (
     LoadCSVStep,
+    GenerateCsvProfileStep,
     AnalyseCsvWithAgentStep,
     GenerateOntologyWithAgentStep,
     GenerateMappingFromOntologyStep,
+    BindAttributesFromOntologyStep,
+    PopulateMissingPrimaryKeysStep,
 )
 
 
@@ -47,16 +50,12 @@ class PipelineFactory:
         cfg = config or DocumentPipelineConfig()
         steps = [
             LoadCSVStep(),
-            AnalyseCsvWithAgentStep(
-                enabled=True,
-                sample_rows=30, 
-            ),
-            GenerateOntologyWithAgentStep(
-                enabled=True
-            ),
-            GenerateMappingFromOntologyStep(
-                enabled=True
-            ),
+            GenerateCsvProfileStep(enabled=True, sample_rows=50),
+            AnalyseCsvWithAgentStep(enabled=True, sample_rows=30),
+            GenerateOntologyWithAgentStep(enabled=True),
+            GenerateMappingFromOntologyStep(enabled=True),
+            BindAttributesFromOntologyStep(enabled=True),
+            PopulateMissingPrimaryKeysStep(enabled=True),
             # PersistDocumentStep(services.db_client, enabled=cfg.enable_persistence and services.db_client is not None)
         ]
         return DocumentPipeline(services=services, config=cfg, steps=steps)
