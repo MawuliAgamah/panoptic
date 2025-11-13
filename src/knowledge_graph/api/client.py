@@ -2,8 +2,7 @@ from typing import Dict, Optional, Union, List, Any, Tuple
 import logging
 from pathlib import Path
 from datetime import datetime
-from ..core.db.db_client import DatabaseClient
-from ..document_ingestion import DocumentPipelineConfig, DocumentPipelineServices
+from ..document_ingestion import DocumentPipeline # , DocumentPipelineConfig, DocumentPipelineServices
 from ..document_ingestion.factory import PipelineFactory
 from ..config import (
     KnowledgeGraphConfig,
@@ -24,7 +23,8 @@ import json as _json
 import re as _re
 import os as _os
 from ..settings.settings import Settings
-
+import logging
+logger = logging.getLogger(__name__)
 
 class KnowledgeGraphClient:
     """
@@ -33,204 +33,25 @@ class KnowledgeGraphClient:
     
     def __init__(
         self,
-        *,
-        config: Optional[Union[KnowledgeGraphConfig, Dict[str, Any]]] = None,
-        # legacy/new alternate params
-        graph_db_config: Optional[Dict[str, Any]] = None,
-        db_config: Optional[Union[Dict[str, Any], str]] = None,
-        llm_config: Optional[Dict[str, Any]] = None,
-        log_level: str = "INFO",
-        max_connections: Optional[int] = None,
-        timeout: Optional[int] = None,
-        # knowledge base store selection
-        kb_store_backend: Optional[str] = None,
-        kb_store_location: Optional[str] = None,
+        settings
     ):
         """Initialize the Knowledge Graph Client.
 
-        Supports both a rich `config` object/dict and legacy split parameters.
         """
-
-        # Handle configuration - support both new and legacy approaches
-        if config is not None:
-            # New configuration approach
-            if isinstance(config, dict):
-                self.config = KnowledgeGraphConfig.from_dict(config)
-            else:
-                self.config = config
-        else:
-            # Legacy configuration approach - build new config from old parameters
-            if not graph_db_config:
-                raise ValueError("Either 'config' or 'graph_db_config' must be provided")
-
-            # Convert legacy config to new format
-            legacy_config = {
-                'graph_db': graph_db_config if isinstance(graph_db_config, dict) else graph_db_config.__dict__,
-                'log_level': log_level,
-                'max_connections': max_connections,
-                'timeout': timeout
-            }
-
-            if db_config:
-                if isinstance(db_config, str):
-                    legacy_config['cache_db'] = {'db_type': 'sqlite', 'db_location': db_config}
-                else:
-                    legacy_config['cache_db'] = db_config
-
-            if llm_config:
-                legacy_config['llm'] = llm_config
-
-            self.config = KnowledgeGraphConfig.from_dict(legacy_config)
-
-        self._configure_logging(self.config.log_level)
-
-        # Initialize services
-        self.db_client = self._initialize_database_connection()
+        # Store settings first so it's available for _initialise_db()
+        self.settings = settings
+        # self._configure_logging(self.config.log_level)
         self._initialize_services()
-
-        # Agent is constructed on demand when building pipeline services
-
-        # Knowledge base persistence selection
-        # Priority: explicit args -> config (graph_db/cache_db) -> db_client sqlite -> JSON colocated with config
-        self._kb_repo = None
-        try:
-            # 1) Explicit args
-            if kb_store_backend and kb_store_backend.strip().lower() == "sqlite":
-                db_path = self._resolve_kb_sqlite_path_override(kb_store_location)
-                if db_path:
-                    self._ensure_parent_dir(db_path)
-                    self._kb_repo = SQLiteKnowledgeBaseRepository(db_path)
-                    self.logger.info(f"KB repo initialized (sqlite, explicit): {db_path}")
-            elif kb_store_backend and kb_store_backend.strip().lower() == "json":
-                json_path = kb_store_location or self._kb_registry_path_from_config()
-                self._ensure_parent_dir(json_path)
-                self._kb_repo = JSONKnowledgeBaseRepository(json_path)
-                self.logger.info(f"KB repo initialized (json, explicit): {json_path}")
-
+        self._initialise_db()
+        self.kb_repo = self.sql_lite.knowledge_base_repository()
             
-
-            # 3) From DatabaseClient sqlite service
-            if self._kb_repo is None:
-                sqlite_service = getattr(self.db_client, "sqlite_service", None)
-                if sqlite_service and getattr(sqlite_service, "repository", None):
-                    db_path_dc = sqlite_service.repository.db_path
-                    if db_path_dc:
-                        self._ensure_parent_dir(db_path_dc)
-                        self._kb_repo = SQLiteKnowledgeBaseRepository(db_path_dc)
-                        self.logger.info(f"KB repo initialized (sqlite, autodetect): {db_path_dc}")
-
-            # 4) JSON fallback colocated with configured DB/data
-            if self._kb_repo is None:
-                json_path = self._kb_registry_path_from_config()
-                self._ensure_parent_dir(json_path)
-                self._kb_repo = JSONKnowledgeBaseRepository(json_path)
-                self.logger.info(f"KB repo fallback (json, config): {json_path}")
-        except Exception as e:
-            self.logger.warning(f"Failed to initialize KB repository: {e}")
-
-        self.logger.info("KnowledgeGraphClient initialized successfully")
-    
-    def _configure_logging(self, log_level: str) -> None:
-        """Configure unified logging for the application.
-
-        - Sets a console handler on the root logger with a formatter that includes
-          correlation fields injected by the InjectContextFilter.
-        - Ensures base namespaces ("knowledge_graph", "knowledgeAgent") are set to the
-          configured level and propagate to root so a single handler captures all logs.
-        """
-        from ..core.logging_utils import InjectContextFilter
-        from logging.handlers import RotatingFileHandler
-        import os
-
-        level = getattr(logging, log_level.upper(), logging.INFO)
-
-        # Root logger configuration (console + rotating file handler)
-        root_logger = logging.getLogger()
-        root_logger.setLevel(level)
-
-        # Common formatter including correlation fields
-        formatter = logging.Formatter(
-            '%(asctime)s | %(levelname)s | %(name)s | doc=%(doc_id)s run=%(run_id)s | %(message)s'
-        )
-
-        # Ensure all existing handlers get the context filter
-        for h in root_logger.handlers:
-            try:
-                h.addFilter(InjectContextFilter())
-            except Exception:
-                pass
-
-        # Console handler: add one if none exists
-        if not any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers):
-            console = logging.StreamHandler()
-            console.setFormatter(formatter)
-            console.addFilter(InjectContextFilter())
-            root_logger.addHandler(console)
-
-        # File handler: logs/app.log at project root (overridable via KG_LOG_FILE)
-        try:
-            log_file = os.getenv('KG_LOG_FILE')
-            if not log_file:
-                # Compute project root and default path
-                project_root = Path(__file__).resolve().parents[3]
-                logs_dir = project_root / 'logs'
-                logs_dir.mkdir(parents=True, exist_ok=True)
-                log_file = str(logs_dir / 'app.log')
-
-            already = False
-            for h in root_logger.handlers:
-                if hasattr(h, 'baseFilename') and getattr(h, 'baseFilename', None) == log_file:
-                    already = True
-                    # Ensure formatter + filter are attached
-                    try:
-                        h.setFormatter(formatter)
-                        h.addFilter(InjectContextFilter())
-                    except Exception:
-                        pass
-                    break
-            if not already:
-                file_h = RotatingFileHandler(log_file, maxBytes=10_000_000, backupCount=5, encoding='utf-8')
-                file_h.setFormatter(formatter)
-                file_h.addFilter(InjectContextFilter())
-                root_logger.addHandler(file_h)
-        except Exception:
-            # Never fail client init on logging errors
-            pass
-
-        # Ensure our primary namespaces propagate to root
-        kg_logger = logging.getLogger("knowledge_graph")
-        kg_logger.setLevel(level)
-        kg_logger.propagate = True
-
-        ka_logger = logging.getLogger("knowledgeAgent")
-        ka_logger.setLevel(level)
-        ka_logger.propagate = True
-
-        # Client-specific logger for convenience
-        self.logger = kg_logger
-    
-
-    
-    def _initialize_database_connection(self):
-
-        # Prepare configurations for DatabaseClient
-        graph_db_config = self.config.graph_db.__dict__
-        cache_db_config = self.config.cache_db.__dict__ if self.config.cache_db else None
-
-        self.logger.debug(f"Initializing graph DB: {graph_db_config.get('db_type', 'unknown')}")
-        if cache_db_config:
-            self.logger.debug(f"Initializing cache DB: {cache_db_config.get('db_type', 'unknown')}")
-
-        try:
-            # Pass both configs to DatabaseClient - it will handle the separation
-            client = DatabaseClient(
-                graph_db_config=graph_db_config,
-                cache_db_config=cache_db_config
-            )
-            return client
-        except Exception as e:
-            self.logger.error(f"Failed to initialize database connection: {e}")
-            raise ValueError(f"Invalid database configuration: {e}")
+    def _initialise_db(self):
+        from ..persistence.sqlite.sql_lite import SqlLite
+        self.sql_lite = SqlLite(self.settings)
+        self.sql_lite.create_tables()
+        
+        
+        
     
     def _initialize_services(self) -> None:
         """Initialize all required services."""
@@ -239,39 +60,39 @@ class KnowledgeGraphClient:
         from ..llm.kg_extractor.service import KGExtractionService
 
         # Initialize LLM service with new config structure
-        llm_config_dict = self.config.llm.__dict__ if self.config.llm else {}
-        self.llm_service = LLMService(config=llm_config_dict)
+        # llm_config_dict = self.config.llm.__dict__ if self.config.llm else {}
+        # self.llm_service = LLMService(config=llm_config_dict)
 
         # Initialize KG extraction service with kggen integration
-        kg_extraction_config = self.config.kg_extraction.__dict__ if self.config.kg_extraction else {}
-        llm_provider = self.config.llm.provider if self.config.llm else "openai"
+        # kg_extraction_config = self.config.kg_extraction.__dict__ if self.config.kg_extraction else {}
+        # llm_provider = self.config.llm.provider if self.config.llm else "openai"
 
-        self.kg_extraction_service = KGExtractionService(
-            llm_provider=llm_provider,
-            **{**llm_config_dict, **kg_extraction_config}
-        )
+        # self.kg_extraction_service = KGExtractionService(
+        #     llm_provider=llm_provider,
+        #     **{**llm_config_dict, **kg_extraction_config}
+        # ) 
 
         # Initialize knowledge graph and document services
-        self.logger.info("Initializing knowledge graph service")
-        self.knowledge_graph_service = KnowledgeGraphService(
-            db_client=self.db_client,
-            llm_service=self.llm_service,
-            llm_provider=llm_provider,
-            kg_extraction_config=kg_extraction_config
-        )
+        logger.info("Initializing knowledge graph service")
+        # self.knowledge_graph_service = KnowledgeGraphService(
+        #     db_client=self.db_client,
+        #     llm_service=self.llm_service,
+        #     llm_provider=llm_provider,
+        #     kg_extraction_config=kg_extraction_config
+        # )
 
         # Prepare pipeline configuration (used by factory-built pipelines)
-        pipeline_settings = getattr(self.config, 'document_pipeline', None)
-        self.pipeline_config = DocumentPipelineConfig(
-            enable_enrichment=getattr(pipeline_settings, 'enable_enrichment', True),
-            enable_kg_extraction=getattr(pipeline_settings, 'enable_kg_extraction', True),
-            enable_persistence=getattr(pipeline_settings, 'enable_persistence', True),
-            chunk_size=getattr(pipeline_settings, 'chunk_size', 1000),
-            chunk_overlap=getattr(pipeline_settings, 'chunk_overlap', 200),
-            chunker_type=getattr(pipeline_settings, 'chunker_type', 'auto'),
-        )
+        # pipeline_settings = getattr(self.config, 'document_pipeline', None)
+        # self.pipeline_config = DocumentPipelineConfig(
+        #     enable_enrichment=getattr(pipeline_settings, 'enable_enrichment', True),
+        #     enable_kg_extraction=getattr(pipeline_settings, 'enable_kg_extraction', True),
+        #     enable_persistence=getattr(pipeline_settings, 'enable_persistence', True),
+        #     chunk_size=getattr(pipeline_settings, 'chunk_size', 1000),
+        #     chunk_overlap=getattr(pipeline_settings, 'chunk_overlap', 200),
+        #     chunker_type=getattr(pipeline_settings, 'chunker_type', 'auto'),
+        # )
         # Keep llm_provider for pipeline services construction
-        self.llm_provider = llm_provider
+        # self.llm_provider = llm_provider
 
     # Document Operations
     def add_document(self, document_path: str) -> str:
@@ -282,20 +103,20 @@ class KnowledgeGraphClient:
 
         Returns the generated document ID.
         """
-        self.logger.info(f"Adding document: {document_path}")
+        logger.info(f"Adding document: {document_path}")
         # Generate a simple short id; persistence will use this as the primary key
         import uuid as _uuid
         document_id = f"doc_{_uuid.uuid4().hex[:8]}"
 
         # Build pipeline services and run appropriate pipeline via factory
-        services = DocumentPipelineServices(
-            llm_service=self.llm_service,
-            kg_service=self.knowledge_graph_service,
-            db_client=self.db_client,
-            llm_provider=self.llm_provider,
-            agent_service=self._build_csv_agent(),
-        )
-        pipeline = PipelineFactory.for_file(document_path, services, config=self.pipeline_config)
+        # services = DocumentPipelineServices(
+        #     llm_service=self.llm_service,
+        #     kg_service=self.knowledge_graph_service,
+        #     db_client=self.db_client,
+        #     llm_provider=self.llm_provider,
+        #     agent_service=self._build_csv_agent(),
+        # )
+        pipeline = PipelineFactory.for_file(document_path) #, services, config=self.pipeline_config)
         document = pipeline.run(
             document_path=document_path,
             document_id=document_id,
@@ -305,7 +126,7 @@ class KnowledgeGraphClient:
         if document and getattr(document, 'id', None):
             document_id = document.id
             
-        self.logger.info(f"Document added with ID: {document_id}")
+        logger.info(f"Document added with ID: {document_id}")
         return document_id
 
     def upload_file(self, file_path: str) -> str:
@@ -317,7 +138,7 @@ class KnowledgeGraphClient:
     
     def delete_document(self,document_id: str):
         try:
-            self.db_client.delete_document(document_id)
+            self.sql_lite.document_repository().delete_document(document_id)
         except Exception:
             self.logger.exception("Failed to delete document %s", document_id)
         self.logger.info(f"Document deleted with ID: {document_id}")
@@ -348,10 +169,10 @@ class KnowledgeGraphClient:
         Idempotent on (owner_id, slug). Returns a handle bound to the KB.
         """
         slug = self._slugify(name)
-        self.logger.info("KB create", extra={"kb_name": name, "kb_slug": slug, "owner_id": owner_id or "-"})
-        kb = self._kb_repo.create(name=name, slug=slug, owner_id=owner_id, description=description)
-        self.logger.info("KB create done", extra={"kb_id": kb.id, "kb_slug": kb.slug, "owner_id": kb.owner_id or "-"})
-        return self.KnowledgeBaseHandle(self, kb)
+        logger.info("KB create", extra={"kb_name": name, "kb_slug": slug, "owner_id": owner_id or "-"})
+        kb = self.kb_repo.create(name=name, slug=slug, owner_id=owner_id, description=description)
+        logger.info("KB create done", extra={"kb_id": kb.id, "kb_slug": kb.slug, "owner_id": kb.owner_id or "-"})
+        return self.KnowledgeBaseHandle(self, kb)   
 
     def get_knowledgebase(self, id_or_name: str, owner_id: Optional[str] = None) -> "KnowledgeBaseHandle":
         """Lookup a knowledge base by id, slug, or exact name.
@@ -359,18 +180,18 @@ class KnowledgeGraphClient:
         If owner_id is provided, it scopes the match; otherwise first match is returned.
         Raises ValueError if not found.
         """
-        self.logger.info("KB get", extra={"lookup": id_or_name, "owner_id": owner_id or "-"})
+        logger.info("KB get", extra={"lookup": id_or_name, "owner_id": owner_id or "-"})
         # id
-        kb = self._kb_repo.get_by_id(id_or_name)
+        kb = self.kb_repo.get_by_id(id_or_name)
         if kb and (owner_id is None or kb.owner_id == owner_id):
             return self.KnowledgeBaseHandle(self, kb)
         # slug
         slug = self._slugify(id_or_name)
-        kb = self._kb_repo.get_by_slug(slug, owner_id=owner_id)
+        kb = self.kb_repo.get_by_slug(slug, owner_id=owner_id)
         if kb:
             return self.KnowledgeBaseHandle(self, kb)
         # name match: list and match exact
-        all_kb = self._kb_repo.list(owner_id=owner_id)
+        all_kb = self.kb_repo.list(owner_id=owner_id)
         for it in all_kb:
             if it.name == id_or_name:
                 return self.KnowledgeBaseHandle(self, it)
@@ -378,8 +199,8 @@ class KnowledgeGraphClient:
 
     def list_knowledgebases(self, owner_id: Optional[str] = None) -> List[KnowledgeBase]:
         """List all knowledge bases, optionally filtered by owner."""
-        items = self._kb_repo.list(owner_id=owner_id)
-        self.logger.info("KB list", extra={"owner_id": owner_id or "-", "kb_count": len(items)})
+        items = self.kb_repo.list(owner_id=owner_id)
+        logger.info("KB list", extra={"owner_id": owner_id or "-", "kb_count": len(items)})
         return items
 
     # ---- Internal KB registry helpers ----
@@ -455,7 +276,7 @@ class KnowledgeGraphClient:
         except FileNotFoundError:
             return []
         except Exception as e:
-            self.logger.warning(f"Failed to read KB registry: {e}")
+            logger.warning(f"Failed to read KB registry: {e}")
             return []
 
     def _kb_registry_write(self, items: List[Dict[str, Any]]) -> None:
@@ -463,7 +284,7 @@ class KnowledgeGraphClient:
             with open(self._kb_registry_path, "w", encoding="utf-8") as f:
                 _json.dump({"items": items}, f, ensure_ascii=False, indent=2, default=str)
         except Exception as e:
-            self.logger.error(f"Failed to write KB registry: {e}")
+            logger.error(f"Failed to write KB registry: {e}")
 
     # --- Agent construction (CSV analysis) ---
     def _build_csv_agent(self):
@@ -476,7 +297,7 @@ class KnowledgeGraphClient:
             return CsvAnalysisAgent()
         except Exception:
             # If agent fails to import, return None so steps skip gracefully
-            self.logger.warning("CSV agent unavailable; skipping agent-driven steps")
+            logger.warning("CSV agent unavailable; skipping agent-driven steps")
             return None
 
     @staticmethod
@@ -526,7 +347,7 @@ class KnowledgeGraphClient:
         )
 
     def get_cached_document(self,document_id):
-        document_object = self.db_client.get_document(document_id=document_id)
+        document_object = self.sql_lite.document_repository().get_document(document_id)
         return document_object
     
     def extract_knowledge_graph_json(self, document_path: str, document_id: str, document_type: Optional[str] = None, 
@@ -544,7 +365,7 @@ class KnowledgeGraphClient:
         Returns:
             Dictionary containing extracted entities, relationships, and metadata
         """
-        self.logger.info(f"Extracting knowledge graph JSON from: {document_path}")
+        logger.info(f"Extracting knowledge graph JSON from: {document_path}")
         
         try:
             pipeline_settings = getattr(self.config, 'document_pipeline', None)
@@ -560,7 +381,7 @@ class KnowledgeGraphClient:
             services = DocumentPipelineServices(
                 llm_service=self.llm_service,
                 kg_service=self.knowledge_graph_service,
-                db_client=self.db_client,
+                db_client=None,  # No longer using cache_db, persistence handled via sql_lite
                 llm_provider=self.llm_provider,
                 agent_service=self._build_csv_agent(),
             )
@@ -669,7 +490,13 @@ class KnowledgeGraphClient:
         Returns:
             Dictionary with query results including entities and relationships
         """
-        return self.db_client.query_knowledge_graph(query_text)
+        snapshot = self.sql_lite.graph_repository().get_graph_snapshot()
+        return {
+            'query': query_text,
+            'entities': snapshot.get('nodes', []),
+            'relationships': snapshot.get('edges', []),
+            'total_results': len(snapshot.get('nodes', [])) + len(snapshot.get('edges', []))
+        }
 
     
     def get_all_document_ids(self) -> List[str]:
@@ -679,13 +506,13 @@ class KnowledgeGraphClient:
         Returns:
             List of unique document IDs
         """
-        snapshot = self.db_client.get_graph_snapshot()
+        snapshot = self.sql_lite.graph_repository().get_graph_snapshot()
         return [doc.get("id") for doc in snapshot.get("documents", [])]
 
     def get_graph_snapshot(self, document_id: Optional[str] = None) -> Dict[str, Any]:
         """Return a GraphSnapshot derived from the SQLite persistence layer."""
         try:
-            return self.db_client.get_graph_snapshot(document_id)
+            return self.sql_lite.graph_repository().get_graph_snapshot(document_id=document_id)
         except Exception as exc:
             self.logger.error(f"Failed to build graph snapshot: {exc}")
             return {"nodes": [], "edges": [], "documents": []}
@@ -721,8 +548,8 @@ class KnowledgeGraphClient:
 
     def close(self) -> None:
         """Close all connections and free resources."""
-        if hasattr(self.db_client, 'close'):
-            self.db_client.close()
+        # sql_lite repositories use connection-per-operation, no explicit close needed
+        # But we can clear any cached resources if needed
         self.logger.info("KnowledgeGraphClient closed")
 
     # Class methods for easy client creation

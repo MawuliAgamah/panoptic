@@ -42,7 +42,14 @@ class SqlLiteRepository:
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self.db_path = str(db_path)
         logger.info("Using database at: %s", self.db_path)
-        self._initialize_database()
+        # Don't initialize immediately - make it lazy
+        self._initialized = False
+
+    def _ensure_initialized(self):
+        """Lazy initialization - only initialize database when first needed."""
+        if not self._initialized:
+            self._initialize_database()
+            self._initialized = True
 
     def _initialize_database(self):
         """Initialize database tables"""
@@ -62,6 +69,7 @@ class SqlLiteRepository:
 
     def doc_exists(self, document_id: str) -> bool:  
         """Check if the document exists"""
+        self._ensure_initialized()
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -82,6 +90,7 @@ class SqlLiteRepository:
 
     def save_document(self, document: Any) -> bool:
         """Save document and its chunks to the database"""
+        self._ensure_initialized()
         try:
             timestamp = datetime.now()
             
@@ -184,6 +193,7 @@ class SqlLiteRepository:
 
     def retrieve_document(self, document_id: str) -> Optional[Dict]:
         """Get document and its chunks from the database"""
+        self._ensure_initialized()
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -220,6 +230,7 @@ class SqlLiteRepository:
         
     def delete_document(self, document_id: str) -> bool:
         """Delete document by ID"""
+        self._ensure_initialized()
         conn = None
         try:
             conn = sqlite3.connect(self.db_path)
@@ -324,6 +335,7 @@ class SqlLiteRepository:
 
     def save_knowledge_graph(self, document_id: str, kg_data: Dict[str, Any]) -> bool:
         """Public wrapper to persist a document-level knowledge graph payload."""
+        self._ensure_initialized()
         conn = None
         try:
             conn = sqlite3.connect(self.db_path)
@@ -345,6 +357,7 @@ class SqlLiteRepository:
 
     def save_document_ontology(self, document_id: str, ontology: Any) -> bool:
         """Save ontology to document"""
+        self._ensure_initialized()
         try:
             # Serialize ontology to JSON if needed
             ontology_json = json.dumps(ontology) if isinstance(ontology, dict) else json.dumps(ontology.dict())
@@ -361,6 +374,7 @@ class SqlLiteRepository:
                 
     def save_entities_and_relationships(self, document_id: str, chunk_id: Optional[int], ontology: Any) -> bool:
         """Save entities and relationships extracted from ontology"""
+        self._ensure_initialized()
         try:
             logger.info("Saving ontology for document: %s", document_id)
             
@@ -475,6 +489,7 @@ class SqlLiteRepository:
 
     def get_document_ontology(self, document_id: str) -> Dict:
         """Get all entities and relationships for a document"""
+        self._ensure_initialized()
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -532,6 +547,7 @@ class SqlLiteRepository:
 
     def get_graph_snapshot(self, document_id: Optional[str] = None) -> Dict[str, Any]:
         """Build a graph snapshot using SQLite entities/relationships tables."""
+        self._ensure_initialized()
         snapshot = {"nodes": [], "edges": [], "documents": []}
 
         try:
@@ -627,6 +643,7 @@ class SqlLiteRepository:
 
     def get_chunk_ontology(self, chunk_id: int) -> Dict:
         """Get all entities and relationships for a chunk"""
+        self._ensure_initialized()
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -701,6 +718,7 @@ class SqlLiteRepository:
 
     def query(self, query: str, params: Optional[tuple] = None) -> List[tuple]:
         """Execute a custom query"""
+        self._ensure_initialized()
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()

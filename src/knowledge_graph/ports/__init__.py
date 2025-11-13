@@ -7,13 +7,13 @@ preserve portability and testability.
 
 from .knowledge_base import KnowledgeBaseRepository
 from .document_repository import DocumentRepository
-from .graph_store import GraphStore
-from .entity_resolution_store import EntityResolutionStore
+from .graph_repository import GraphRepository
+from .entity_resolution_store import EntityResolutionRepository
 
 __all__ = [
     "KnowledgeBaseRepository",
     "DocumentRepository",
-    "GraphStore",
-    "EntityResolutionStore",
+    "GraphRepository",
+    "EntityResolutionRepository",
 ]
 

@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, List, Tuple, Any
 
 
-class EntityResolutionStore(ABC):
+class EntityResolutionRepository(ABC):
     """Port for entity resolution persistence and queries."""
 
     @abstractmethod

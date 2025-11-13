@@ -5,7 +5,7 @@ from ...document_pipeline import DocumentPipelineContext, PipelineStep
 
 
 class PersistDocumentStep(PipelineStep):
-    def __init__(self, *, enabled: bool = True):
+    def __init__(self, enabled: bool = True):
         super().__init__(enabled=enabled)
 
 

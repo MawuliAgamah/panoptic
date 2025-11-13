@@ -46,28 +46,28 @@ class DocumentPipelineContext:
         return self.document
 
 
-@dataclass
-class DocumentPipelineConfig:
-    """Configuration toggles determining which steps run."""
+# @dataclass
+# class DocumentPipelineConfig:
+#     """Configuration toggles determining which steps run."""
 
-    enable_enrichment: bool = True
-    enable_kg_extraction: bool = True
-    enable_persistence: bool = True
-    chunk_size: int = 1000
-    chunk_overlap: int = 200
+#     enable_enrichment: bool = True
+#     enable_kg_extraction: bool = True
+#     enable_persistence: bool = True
+#     chunk_size: int = 1000
+#     chunk_overlap: int = 200
 
-    chunker_type: str = "auto"
+#     chunker_type: str = "auto"
 
 
-@dataclass
-class DocumentPipelineServices:
-    """External services required by pipeline steps."""
+# @dataclass
+# class DocumentPipelineServices:
+#     """External services required by pipeline steps."""
 
-    llm_service: Optional[Any] = None
-    kg_service: Optional[Any] = None
-    db_client: Optional[Any] = None
-    llm_provider: str = "openai"
-    agent_service: Optional[Any] = None
+#     llm_service: Optional[Any] = None
+#     kg_service: Optional[Any] = None
+#     db_client: Optional[Any] = None
+#     llm_provider: str = "openai"
+#     agent_service: Optional[Any] = None
 
 
 class PipelineStep:
@@ -90,13 +90,13 @@ class DocumentPipeline:
 
     def __init__(
         self,
-        services: DocumentPipelineServices,
-        *,
-        config: Optional[DocumentPipelineConfig] = None,
+        # services: DocumentPipelineServices,
+        # *,
+        # config: Optional[DocumentPipelineConfig] = None,
         steps: Optional[List[PipelineStep]] = None,
     ) -> None:
-        self.services = services
-        self.config = config or DocumentPipelineConfig()
+        # self.services = services
+        # self.config = config or DocumentPipelineConfig()
         self._steps = steps or []
 
     @property

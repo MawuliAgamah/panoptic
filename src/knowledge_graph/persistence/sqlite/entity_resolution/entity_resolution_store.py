@@ -8,14 +8,17 @@ method stubs with the correct signatures.
 """
 
 from typing import Optional, List, Tuple, Any
-from ....ports.entity_resolution_store import EntityResolutionStore
+from ....ports.entity_resolution_store import EntityResolutionRepository
 from ....core.db.db_client import DatabaseClient
 from ....entity_resolution import persist as er_persist
 
 
-class SQLiteEntityResolutionStore(EntityResolutionStore):
+class SQLiteEntityResolutionRepository(EntityResolutionRepository):
     def __init__(self, db_path: str):
         self.db_path = db_path
+
+    def create_tables(self) -> None:
+        pass
 
     def _db(self) -> DatabaseClient:
         return DatabaseClient(graph_db_config=None, cache_db_config={"db_type": "sqlite", "db_location": self.db_path})

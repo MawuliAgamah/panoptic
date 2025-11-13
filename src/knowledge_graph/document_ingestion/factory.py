@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from .document_pipeline import DocumentPipeline, DocumentPipelineConfig, DocumentPipelineServices
+from .document_pipeline import DocumentPipeline # , DocumentPipelineConfig, DocumentPipelineServices
 from .pdf.steps import (
     LoadDocumentStep,
     CleanContentStep,
@@ -43,11 +43,11 @@ class PipelineFactory:
 
     @staticmethod
     def csv_pipeline(
-        services: DocumentPipelineServices,
-        *,
-        config: Optional[DocumentPipelineConfig] = None,
+        # services: DocumentPipelineServices,
+        # *,
+        # config: Optional[DocumentPipelineConfig] = None,
     ) -> DocumentPipeline:
-        cfg = config or DocumentPipelineConfig()
+        # cfg = config or DocumentPipelineConfig()
         steps = [
             LoadCSVStep(),
             GenerateCsvProfileStep(enabled=True, sample_rows=50),
@@ -58,15 +58,15 @@ class PipelineFactory:
             PopulateMissingPrimaryKeysStep(enabled=True),
             PersistDocumentStep(services.db_client, enabled=cfg.enable_persistence and services.db_client is not None)
         ]
-        return DocumentPipeline(services=services, config=cfg, steps=steps)
+        return DocumentPipeline(steps=steps)
 
     @staticmethod
     def general_pipeline(
-        services: DocumentPipelineServices,
-        *,
-        config: Optional[DocumentPipelineConfig] = None,
+        # services: DocumentPipelineServices,
+        # *,
+        # config: Optional[DocumentPipelineConfig] = None,
     ) -> DocumentPipeline:
-        cfg = config or DocumentPipelineConfig()
+        # cfg = config or DocumentPipelineConfig()
         steps = [
             LoadDocumentStep(),
             CleanContentStep(),
@@ -84,4 +84,4 @@ class PipelineFactory:
             ),
             PersistDocumentStep(services.db_client, enabled=cfg.enable_persistence and services.db_client is not None),
         ]
-        return DocumentPipeline(services=services, config=cfg, steps=steps)
+        return DocumentPipeline(steps=steps)

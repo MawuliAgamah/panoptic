@@ -52,7 +52,8 @@ class CoreSettings:
 class DBSettings:
     # sqlite | neo4j | json (json included for parity/legacy; most flows use sqlite)
     db_type: str = "sqlite"
-    db_location: Optional[str] = None  
+    db_location: Optional[str] = "database/sql_lite/knowledgebase.db"
+
 
 
 @dataclass
@@ -99,13 +100,8 @@ class FeaturesSettings:
 @dataclass
 class Settings:
     core: CoreSettings = field(default_factory=CoreSettings)
-    graph_db: DBSettings = field(default_factory=DBSettings)
-    cache_db: Optional[DBSettings] = field(default_factory=DBSettings)
-    kb_store: KBStoreSettings = field(default_factory=KBStoreSettings)
+    db: DBSettings = field(default_factory=DBSettings)
     llm: LLMSettings = field(default_factory=LLMSettings)
-    pipeline: PipelineSettings = field(default_factory=PipelineSettings)
-    features: FeaturesSettings = field(default_factory=FeaturesSettings)
-
 
 # ---------- Loader ----------
 

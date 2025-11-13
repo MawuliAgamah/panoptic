@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
 
 
-class GraphStore(ABC):
+class GraphRepository(ABC):
     """Port for persisting and querying knowledge graphs.
 
     Stores document-level entities/edges and builds graph snapshots. Queries

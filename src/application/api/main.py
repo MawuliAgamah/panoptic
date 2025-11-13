@@ -36,7 +36,7 @@ try:
         logs_dir.mkdir(parents=True, exist_ok=True)
         log_file = logs_dir / 'app.log'
 
-    formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(name)s | doc=%(doc_id)s run=%(run_id)s | %(message)s')
+    formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(name)s | %(message)s')
 
     # Console handler (if none)
     if not any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers):
@@ -57,18 +57,16 @@ except Exception:
 
 from contextlib import asynccontextmanager
 from knowledge_graph import create_client
+from knowledge_graph.settings.settings import Settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Create a single KnowledgeGraphClient and close it on shutdown (no bootstrap)."""
-    app.state.kg_client = create_client()
+    app.state.kg_client = create_client(settings=Settings())
     try:
         yield
     finally:
-        try:
-            app.state.kg_client.close()
-        except Exception:
-            pass
+        app.state.kg_client.close()
 
 
 # Create FastAPI app
