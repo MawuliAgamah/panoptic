@@ -33,7 +33,7 @@ from ..core.queries import (
 logger = logging.getLogger(__name__)
 
 
-class SQLiteGraphRepository(GraphRepository):
+class SQLiteGraphRepository():
     """SQLite implementation of GraphRepository port."""
     
     def __init__(self, db_path: str):
@@ -51,24 +51,10 @@ class SQLiteGraphRepository(GraphRepository):
             with sqlite3.connect(self.db_path) as conn:
                 cur = conn.cursor()
                 cur.execute("PRAGMA foreign_keys=ON")
-                
                 # Create entities table
                 cur.execute(CREATE_ENTITIES_TABLE)
-                cur.execute(CREATE_INDEX_ENTITIES_KB_ID)
-                cur.execute(CREATE_INDEX_ENTITIES_DOCUMENT_ID)
-                cur.execute(CREATE_INDEX_ENTITIES_DEFINITION_ID)
-                cur.execute(CREATE_INDEX_ENTITIES_TYPE)
-                cur.execute(CREATE_INDEX_ENTITIES_TYPE_LABEL)
-                
                 # Create relationships table
                 cur.execute(CREATE_RELATIONSHIPS_TABLE)
-                cur.execute(CREATE_INDEX_RELATIONSHIPS_KB_ID)
-                cur.execute(CREATE_INDEX_RELATIONSHIPS_DOCUMENT_ID)
-                cur.execute(CREATE_INDEX_RELATIONSHIPS_SOURCE_ID)
-                cur.execute(CREATE_INDEX_RELATIONSHIPS_TARGET_ID)
-                cur.execute(CREATE_INDEX_RELATIONSHIPS_TYPE)
-                cur.execute(CREATE_INDEX_RELATIONSHIPS_DEFINITION_ID)
-                
                 conn.commit()
                 logger.info("Graph tables created/verified")
                 return True
@@ -76,33 +62,52 @@ class SQLiteGraphRepository(GraphRepository):
             logger.error(f"Error creating graph tables: {e}")
             return False
 
-    def save_knowledge_graph(self, document_id: str, kg_data: Dict[str, Any], *, kb_id: Optional[str] = None) -> bool:
+    def save_to_knowledge_graph(self, document_id: str, kg_data: Dict[str, Any], *, kb_id: Optional[str] = None) -> bool:
         """Persist a document-level knowledge graph payload."""
+        # Convert IDs to integers (outside try block for error logging)
+        try:
+            doc_id_int = int(document_id)
+        except (ValueError, TypeError):
+            doc_id_int = abs(hash(document_id)) % (10 ** 9)
+        
+        kb_id_int = 0
+        if kb_id:
+            try:
+                kb_id_int = int(kb_id)
+            except (ValueError, TypeError):
+                kb_id_int = 0
+        
+        # Extract entities and relationships from kg_data
+        entities = kg_data.get('entities', [])
+        relationships = kg_data.get('relationships', [])
+        
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cur = conn.cursor()
                 cur.execute("PRAGMA foreign_keys=ON")
                 
-                # Convert IDs to integers
-                try:
-                    doc_id_int = int(document_id)
-                except (ValueError, TypeError):
-                    doc_id_int = abs(hash(document_id)) % (10 ** 9)
+                # Verify document exists
+                cur.execute("SELECT id FROM documents WHERE id = ?", (doc_id_int,))
+                doc_exists = cur.fetchone()
+                if not doc_exists:
+                    logger.error(f"❌ [SAVE] Document {doc_id_int} does not exist in documents table. Cannot save KG.")
+                    logger.error(f"  → Please ensure the document is saved before persisting the knowledge graph.")
+                    return False
                 
-                kb_id_int = 0
-                if kb_id:
-                    try:
-                        kb_id_int = int(kb_id)
-                    except (ValueError, TypeError):
-                        kb_id_int = 0
+                # Verify kb_id exists if provided
+                if kb_id_int and kb_id_int != 0:
+                    cur.execute("SELECT id FROM knowledge_bases WHERE id = ?", (kb_id_int,))
+                    kb_exists = cur.fetchone()
+                    if not kb_exists:
+                        logger.error(f"❌ [SAVE] Knowledge base {kb_id_int} does not exist in knowledge_bases table. Cannot save KG.")
+                        logger.error(f"  → Please ensure the knowledge base is created before persisting the knowledge graph.")
+                        return False
                 
-                # Extract entities and relationships from kg_data
-                entities = kg_data.get('entities', [])
-                relationships = kg_data.get('relationships', [])
+                logger.info(f"✅ [SAVE] Verified document {doc_id_int} and KB {kb_id_int} exist. Proceeding with KG save...")
                 
                 # Delete existing entities and relationships for this document
-                cur.execute("DELETE FROM relationships WHERE document_id = ?", (doc_id_int,))
-                cur.execute("DELETE FROM entities WHERE document_id = ?", (doc_id_int,))
+                #cur.execute("DELETE FROM relationships WHERE document_id = ?", (doc_id_int,))
+                #cur.execute("DELETE FROM entities WHERE document_id = ?", (doc_id_int,))
                 
                 # Insert entities
                 entity_id_map = {}  # Map from entity ID in kg_data to database ID
@@ -118,7 +123,13 @@ class SQLiteGraphRepository(GraphRepository):
                     
                     cur.execute(
                         """INSERT INTO entities (
-                            id, kb_id, document_id, entity_definition_id, entity_type, entity_label, properties
+                            id, 
+                            kb_id, 
+                            document_id, 
+                            entity_definition_id, 
+                            entity_type, 
+                            entity_label, 
+                            properties
                         ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
                         (
                             entity_db_id,
@@ -167,7 +178,11 @@ class SQLiteGraphRepository(GraphRepository):
                 logger.debug(f"Knowledge graph saved for document: {document_id}")
                 return True
         except Exception as e:
-            logger.error(f"Error saving knowledge graph for document {document_id}: {e}")
+            logger.error(f"❌ [SAVE] Error saving knowledge graph for document {document_id}: {e}", exc_info=True)
+            logger.error(f"  → Document ID (int): {doc_id_int}")
+            logger.error(f"  → KB ID (int): {kb_id_int}")
+            logger.error(f"  → Entities count: {len(entities)}")
+            logger.error(f"  → Relationships count: {len(relationships)}")
             return False
 
     def get_graph_snapshot(self, *, kb_id: Optional[str] = None, document_id: Optional[str] = None) -> Dict[str, Any]:

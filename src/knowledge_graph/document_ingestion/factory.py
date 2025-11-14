@@ -22,6 +22,7 @@ from .tabular.steps import (
     GenerateMappingFromOntologyStep,
     BindAttributesFromOntologyStep,
     PopulateMissingPrimaryKeysStep,
+    TransformAndPersistKGStep,
 )
 
 
@@ -56,7 +57,7 @@ class PipelineFactory:
             GenerateMappingFromOntologyStep(enabled=True),
             BindAttributesFromOntologyStep(enabled=True),
             PopulateMissingPrimaryKeysStep(enabled=True),
-            PersistDocumentStep(enabled=True)
+            TransformAndPersistKGStep(enabled=True),
         ]
         return DocumentPipeline(steps=steps)
 
