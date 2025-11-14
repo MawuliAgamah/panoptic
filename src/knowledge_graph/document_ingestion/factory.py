@@ -31,15 +31,15 @@ class PipelineFactory:
     @staticmethod
     def for_file(
         file_path: str,
-        services: DocumentPipelineServices,
+        # services: DocumentPipelineServices,
         *,
         config: Optional[DocumentPipelineConfig] = None,
     ) -> DocumentPipeline:
         file_type = (file_path.split(".")[-1] if "." in file_path else "").lower()
         if file_type == "csv":
-            return PipelineFactory.csv_pipeline(services, config=config)
+            return PipelineFactory.csv_pipeline()
         # Default/general pipeline
-        return PipelineFactory.general_pipeline(services, config=config)
+        return PipelineFactory.general_pipeline()
 
     @staticmethod
     def csv_pipeline(
@@ -56,7 +56,7 @@ class PipelineFactory:
             GenerateMappingFromOntologyStep(enabled=True),
             BindAttributesFromOntologyStep(enabled=True),
             PopulateMissingPrimaryKeysStep(enabled=True),
-            PersistDocumentStep(services.db_client, enabled=cfg.enable_persistence and services.db_client is not None)
+            PersistDocumentStep(enabled=True)
         ]
         return DocumentPipeline(steps=steps)
 
@@ -82,6 +82,6 @@ class PipelineFactory:
                 chunk_overlap=cfg.chunk_overlap,
                 chunker_type=cfg.chunker_type,
             ),
-            PersistDocumentStep(services.db_client, enabled=cfg.enable_persistence and services.db_client is not None),
+            PersistDocumentStep(enabled=True),
         ]
         return DocumentPipeline(steps=steps)

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 from ...document_pipeline import DocumentPipelineContext, PipelineStep
-
+from knowledge_graph.agent.agent import CsvAnalysisAgent
+from knowledge_graph.logging_utils import red
 logger = logging.getLogger("knowledgeAgent.pipeline.csv.agent_analyze")
 
 import os
@@ -17,12 +18,9 @@ class AnalyseCsvWithAgentStep(PipelineStep):
         self.sample_rows = sample_rows
 
     def run(self, context: DocumentPipelineContext) -> DocumentPipelineContext:
+        logger.info(red("STEP 3: Analyse CSV with Agent"))
         document = context.ensure_document()
-        agent = context.services.agent_service
-        if agent is None:
-            logger.info("Agent service not available; skipping analysis step")
-            raise ValueError("Agent service not available")
-
+        agent = CsvAnalysisAgent()
         try:
             # Determine delimiter from prior CSV profile if available
             delimiter = getattr(getattr(context, "csv_profile", None), "delimiter", ",") or ","

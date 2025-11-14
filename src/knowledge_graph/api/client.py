@@ -1,4 +1,5 @@
 from typing import Dict, Optional, Union, List, Any, Tuple
+import uuid as _uuid
 import logging
 from pathlib import Path
 from datetime import datetime
@@ -95,7 +96,7 @@ class KnowledgeGraphClient:
         # self.llm_provider = llm_provider
 
     # Document Operations
-    def add_document(self, document_path: str) -> str:
+    def add_document(self, document_path: str,kb_id: str) -> str:
         """Add a document to the knowledge graph using the appropriate pipeline.
 
         Auto-generates a document ID and routes to a CSV or general pipeline
@@ -104,37 +105,23 @@ class KnowledgeGraphClient:
         Returns the generated document ID.
         """
         logger.info(f"Adding document: {document_path}")
-        # Generate a simple short id; persistence will use this as the primary key
-        import uuid as _uuid
         document_id = f"doc_{_uuid.uuid4().hex[:8]}"
-
-        # Build pipeline services and run appropriate pipeline via factory
-        # services = DocumentPipelineServices(
-        #     llm_service=self.llm_service,
-        #     kg_service=self.knowledge_graph_service,
-        #     db_client=self.db_client,
-        #     llm_provider=self.llm_provider,
-        #     agent_service=self._build_csv_agent(),
-        # )
-        pipeline = PipelineFactory.for_file(document_path) #, services, config=self.pipeline_config)
+        pipeline = PipelineFactory.for_file(document_path)
+        
         document = pipeline.run(
             document_path=document_path,
             document_id=document_id,
-            domain=None,
-            tags=None,
-        )
-        if document and getattr(document, 'id', None):
-            document_id = document.id
-            
+            kb_id=kb_id,
+        )            
         logger.info(f"Document added with ID: {document_id}")
         return document_id
 
-    def upload_file(self, file_path: str) -> str:
+    def upload_file(self, file_path: str, kb_id: str) -> str:
         """Convenience: upload/ingest a file and route to the appropriate pipeline.
 
         Auto-generates a document ID and returns it.
         """
-        return self.add_document(document_path=file_path)
+        return self.add_document(document_path=file_path, kb_id=kb_id)
     
     def delete_document(self,document_id: str):
         try:
@@ -550,7 +537,7 @@ class KnowledgeGraphClient:
         """Close all connections and free resources."""
         # sql_lite repositories use connection-per-operation, no explicit close needed
         # But we can clear any cached resources if needed
-        self.logger.info("KnowledgeGraphClient closed")
+        logger.info("KnowledgeGraphClient closed")
 
     # Class methods for easy client creation
     @classmethod

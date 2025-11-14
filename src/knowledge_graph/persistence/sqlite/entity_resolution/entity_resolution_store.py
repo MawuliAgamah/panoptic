@@ -1,55 +1,80 @@
 from __future__ import annotations
 
-"""SQLite implementation scaffold for EntityResolutionStore.
+"""SQLite implementation for EntityResolutionStore.
 
-This adapter will wrap the helper functions in entity_resolution.persist,
-adding kb_id filtering once the schema supports it. For now, it exposes
-method stubs with the correct signatures.
+This adapter wraps the helper functions in entity_resolution.persist,
+providing a simple adapter to work with direct database paths.
 """
 
 from typing import Optional, List, Tuple, Any
+import sqlite3
+import logging
+from pathlib import Path
+
 from ....ports.entity_resolution_store import EntityResolutionRepository
-from ....core.db.db_client import DatabaseClient
 from ....entity_resolution import persist as er_persist
+
+logger = logging.getLogger(__name__)
+
+
+class _DbAdapter:
+    """Minimal adapter to provide what persist functions expect from DatabaseClient."""
+    
+    def __init__(self, db_path: str):
+        self.db_path = db_path
+        # Create a mock sqlite_service with repository
+        self.sqlite_service = type('obj', (object,), {
+            'repository': type('obj', (object,), {'db_path': db_path})()
+        })()
 
 
 class SQLiteEntityResolutionRepository(EntityResolutionRepository):
     def __init__(self, db_path: str):
         self.db_path = db_path
+        self._ensure_db_dir()
+        self._db_adapter = _DbAdapter(db_path)
+    
+    def _ensure_db_dir(self) -> None:
+        """Ensure the database directory exists."""
+        db_file = Path(self.db_path)
+        db_file.parent.mkdir(parents=True, exist_ok=True)
 
     def create_tables(self) -> None:
-        pass
-
-    def _db(self) -> DatabaseClient:
-        return DatabaseClient(graph_db_config=None, cache_db_config={"db_type": "sqlite", "db_location": self.db_path})
+        """Create tables - calls ensure_schema."""
+        self.ensure_schema()
 
     def ensure_schema(self) -> None:
-        db = self._db()
+        """Ensure entity resolution schema exists."""
         try:
-            er_persist.ensure_schema(db)
-        finally:
-            db.close()
-
+            er_persist.ensure_schema(self._db_adapter)
+            logger.info("Entity resolution schema ensured")
+        except Exception as e:
+            logger.error(f"Error ensuring entity resolution schema: {e}")
+            raise
+    
     def fetch_mentions(self, *, kb_id: Optional[str] = None, doc_ids: Optional[List[str]] = None) -> List[Any]:
-        db = self._db()
+        """Fetch entity mentions from the database."""
         try:
-            return er_persist.fetch_mentions(db, doc_ids)
-        finally:
-            db.close()
+            return er_persist.fetch_mentions(self._db_adapter, doc_ids)
+        except Exception as e:
+            logger.error(f"Error fetching mentions: {e}")
+            return []
 
     def fetch_relationships(self, *, kb_id: Optional[str] = None, doc_ids: Optional[List[str]] = None) -> List[Tuple]:
-        db = self._db()
+        """Fetch relationships from the database."""
         try:
-            return er_persist.fetch_relationships(db, doc_ids)
-        finally:
-            db.close()
+            return er_persist.fetch_relationships(self._db_adapter, doc_ids)
+        except Exception as e:
+            logger.error(f"Error fetching relationships: {e}")
+            return []
 
     def upsert_resolved_entities(self, items: List[Any]) -> int:
-        db = self._db()
+        """Upsert resolved entities."""
         try:
-            return er_persist.upsert_resolved_entities(db, items)
-        finally:
-            db.close()
+            return er_persist.upsert_resolved_entities(self._db_adapter, items)
+        except Exception as e:
+            logger.error(f"Error upserting resolved entities: {e}")
+            return 0
 
     def upsert_entity_resolution_map(self, mappings: List[Tuple[str, str, str, str, float]]) -> int:
         """Accepts flexible tuple lengths; normalizes for persist function.
@@ -72,24 +97,26 @@ class SQLiteEntityResolutionRepository(EntityResolutionRepository):
                 normalized.append((e, r, k, d, "exact", 1.0))
             else:
                 raise ValueError("Invalid mapping tuple length")
-        db = self._db()
         try:
-            return er_persist.upsert_entity_resolution_map(db, normalized)  # type: ignore[arg-type]
-        finally:
-            db.close()
+            return er_persist.upsert_entity_resolution_map(self._db_adapter, normalized)  # type: ignore[arg-type]
+        except Exception as e:
+            logger.error(f"Error upserting entity resolution map: {e}")
+            return 0
 
     def insert_resolved_relationship_mentions(self, rows: List[Tuple[str, str, str, Optional[int], Optional[str], Optional[int]]]) -> None:
-        db = self._db()
+        """Insert resolved relationship mentions."""
         try:
-            er_persist.insert_resolved_relationship_mentions(db, rows)
-        finally:
-            db.close()
+            er_persist.insert_resolved_relationship_mentions(self._db_adapter, rows)
+        except Exception as e:
+            logger.error(f"Error inserting resolved relationship mentions: {e}")
+            raise
 
     def upsert_resolved_relationships_base(self, rows: List[Tuple[str, str, str, str, Optional[str], Optional[str]]]) -> int:
-        db = self._db()
+        """Upsert resolved relationships aggregate base rows."""
         try:
-            er_persist.upsert_resolved_relationships_base(db, rows)
+            er_persist.upsert_resolved_relationships_base(self._db_adapter, rows)
             # persist function does not return count; best-effort rows length
             return len(rows)
-        finally:
-            db.close()
+        except Exception as e:
+            logger.error(f"Error upserting resolved relationships: {e}")
+            return 0

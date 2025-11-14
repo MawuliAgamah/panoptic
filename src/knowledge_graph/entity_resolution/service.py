@@ -4,7 +4,7 @@ import logging
 from typing import Dict, List, Tuple, Optional
 from collections import defaultdict
 
-from ..core.db.db_client import DatabaseClient
+# from ..persistence.sqlite.sql_lite import SqlLite
 from .models import (
     ResolutionFilter,
     EntityMention,
@@ -28,8 +28,8 @@ class EntityResolutionService:
         stats = svc.resolve({"doc_ids": [..]}, mode="incremental")
     """
 
-    def __init__(self, db_client: DatabaseClient) -> None:
-        self.db = db_client
+    def __init__(self) -> None:
+        pass 
 
     def resolve(self, filter: Optional[ResolutionFilter] = None, mode: str = "incremental") -> ResolutionStats:
         persist.ensure_schema(self.db)

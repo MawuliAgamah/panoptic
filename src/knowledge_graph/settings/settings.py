@@ -34,7 +34,7 @@ Notes:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, fields, is_dataclass
+from dataclasses import dataclass, field, fields, is_dataclass, MISSING
 from functools import lru_cache
 from typing import Any, Dict, Optional
 import os
@@ -50,7 +50,6 @@ class CoreSettings:
 
 @dataclass
 class DBSettings:
-    # sqlite | neo4j | json (json included for parity/legacy; most flows use sqlite)
     db_type: str = "sqlite"
     db_location: Optional[str] = "database/sql_lite/knowledgebase.db"
 
@@ -183,10 +182,24 @@ def _instantiate_dataclass(cls: Any, data: Dict[str, Any]) -> Any:
         target_type = args[0] if origin is Optional and args else t
 
         if is_dataclass(target_type):
-            kwargs[name] = _instantiate_dataclass(target_type, raw or {})
+            # If raw is None or empty dict, use default_factory if available
+            if raw is None or (isinstance(raw, dict) and not raw):
+                # Try to get default_factory from field
+                if hasattr(f, 'default_factory') and f.default_factory is not MISSING:
+                    kwargs[name] = f.default_factory()
+                else:
+                    kwargs[name] = _instantiate_dataclass(target_type, {})
+            else:
+                kwargs[name] = _instantiate_dataclass(target_type, raw or {})
         else:
             if raw is None:
-                kwargs[name] = getattr(cls, name, None)
+                # Try to get default from field
+                if hasattr(f, 'default') and f.default is not MISSING:
+                    kwargs[name] = f.default
+                elif hasattr(f, 'default_factory') and f.default_factory is not MISSING:
+                    kwargs[name] = f.default_factory()
+                else:
+                    kwargs[name] = None
             else:
                 kwargs[name] = _coerce(raw, target_type)
     return cls(**kwargs)
@@ -209,6 +222,7 @@ def _normalize_env_settings(env: Dict[str, Any]) -> Dict[str, Any]:
 
     out: Dict[str, Any] = {
         "core": core,
+        "db": env.get("db", {}),  # Add this line
         "graph_db": env.get("graph_db", {}),
         "cache_db": env.get("cache_db", {}),
         "kb_store": env.get("kb_store", {}),
@@ -224,11 +238,44 @@ def load_settings(overrides: Optional[Dict[str, Any]] = None) -> Settings:
 
     This function does not mutate global state and performs no I/O beyond env reads.
     """
+    # Start with defaults
+    settings = Settings()
+    
+    # Load from environment
     env_data = _parse_prefixed_env(prefix="KG_")
     env_struct = _normalize_env_settings(env_data)
-    merged = _deep_merge(env_struct, overrides or {})
-    # Instantiate recursively
-    settings = _instantiate_dataclass(Settings, merged)
+    
+    # Apply environment overrides
+    if env_struct.get("core"):
+        for key, value in env_struct["core"].items():
+            if hasattr(settings.core, key):
+                setattr(settings.core, key, value)
+    
+    if env_struct.get("db"):
+        for key, value in env_struct["db"].items():
+            if hasattr(settings.db, key):
+                setattr(settings.db, key, value)
+    
+    if env_struct.get("llm"):
+        for key, value in env_struct["llm"].items():
+            if hasattr(settings.llm, key):
+                setattr(settings.llm, key, value)
+    
+    # Apply explicit overrides
+    if overrides:
+        if "core" in overrides:
+            for key, value in overrides["core"].items():
+                if hasattr(settings.core, key):
+                    setattr(settings.core, key, value)
+        if "db" in overrides:
+            for key, value in overrides["db"].items():
+                if hasattr(settings.db, key):
+                    setattr(settings.db, key, value)
+        if "llm" in overrides:
+            for key, value in overrides["llm"].items():
+                if hasattr(settings.llm, key):
+                    setattr(settings.llm, key, value)
+    
     return settings
 
 

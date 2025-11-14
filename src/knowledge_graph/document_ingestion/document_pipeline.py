@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from ..data_structs.document import Document
-from ..core.logging_utils import set_logging_context, clear_logging_context
+from ..logging_utils import set_logging_context, clear_logging_context
 
 
 logger = logging.getLogger("knowledgeAgent.pipeline")
@@ -24,8 +24,8 @@ class DocumentPipelineParams:
 
     document_path: str
     document_id: str
-    domain: Optional[str] = None
-    tags: Optional[List[str]] = None
+    kb_id: str
+
 
 
 @dataclass
@@ -33,7 +33,6 @@ class DocumentPipelineContext:
     """Mutable context shared across pipeline steps."""
 
     params: DocumentPipelineParams
-    services: "DocumentPipelineServices"
     document: Optional[Document] = None
     results: Dict[str, Any] = field(default_factory=dict)
 
@@ -115,6 +114,7 @@ class DocumentPipeline:
         *,
         document_path: str,
         document_id: str,
+        kb_id: Optional[str] = None,  # ADD THIS
         domain: Optional[str] = None,
         tags: Optional[List[str]] = None,
     ) -> Optional[Document]:
@@ -122,10 +122,9 @@ class DocumentPipeline:
         params = DocumentPipelineParams(
             document_path=document_path,
             document_id=document_id,
-            domain=domain,
-            tags=tags or [],
+            kb_id=kb_id
         )
-        context = DocumentPipelineContext(params=params, services=self.services)
+        context = DocumentPipelineContext(params=params)
 
         # Establish a run_id for correlation and inject into logging context
         run_id = str(uuid.uuid4())

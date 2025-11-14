@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from knowledge_graph.persistence.sqlite.sql_lite import SqlLite
+from knowledge_graph.settings.settings import get_settings
 from ...document_pipeline import DocumentPipelineContext, PipelineStep
 
 class PersistDocumentStep(PipelineStep):
@@ -9,9 +11,8 @@ class PersistDocumentStep(PipelineStep):
 
     name = "persist_document"
 
-    def __init__(self, db_client, *, enabled: bool = True) -> None:
-        super().__init__(enabled=enabled and db_client is not None)
-        self.db_client = db_client
+    def __init__(self,enabled: bool = True) -> None:
+        super().__init__(enabled=enabled)
 
     def run(self, context: DocumentPipelineContext) -> DocumentPipelineContext:
         if not self.should_run(context):
@@ -19,7 +20,9 @@ class PersistDocumentStep(PipelineStep):
 
         document = context.ensure_document()
         try:
-            self.db_client.save_document(document)
+            sqlite = SqlLite(settings=get_settings())  # uses default repo path resolution
+            doc_repo = sqlite.document_repository()
+            doc_repo.save_document(document)
             context.results[self.name] = {"persisted": True}
         except Exception as exc:  # pragma: no cover - defensive guard
             context.results[self.name] = {"persisted": False, "error": str(exc)}

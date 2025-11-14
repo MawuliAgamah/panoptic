@@ -1,5 +1,7 @@
 """SQLite DDL + queries for tabular (CSV) documents."""
 
+
+
 # CSV profiles: structure and statistics for a CSV document
 CREATE_CSV_PROFILES_TABLE = """
 CREATE TABLE IF NOT EXISTS csv_profiles (
@@ -35,6 +37,8 @@ ON CONFLICT(document_id) DO UPDATE SET
 RETURNING id;
 """
 
+
+
 # CSV mappings: mapping spec from CSV to KG ontology
 CREATE_CSV_MAPPINGS_TABLE = """
 CREATE TABLE IF NOT EXISTS csv_mappings (
@@ -66,8 +70,3 @@ ON CONFLICT(ontology_id) DO UPDATE SET
   validated_at = excluded.validated_at;
 """
 
-# Backward-compatible aliases for earlier constant names
-CREATE_TABULAR_DOCUMENTS_TABLE = CREATE_CSV_PROFILES_TABLE
-CREATE_CSV_MAPPING_TABLE = CREATE_CSV_MAPPINGS_TABLE
-SAVE_TABULAR_DOCUMENT = UPSERT_CSV_PROFILE
-INSERT_TABULAR_DOCUMENT = UPSERT_CSV_PROFILE

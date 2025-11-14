@@ -80,6 +80,7 @@ class DocumentService:
         return pipeline.run(
             document_path=document_path,
             document_id=document_id,
+            kb_id=kb_id,
             domain=domain,
             tags=tags,
         )

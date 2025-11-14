@@ -4,7 +4,7 @@ import sqlite3
 from typing import Iterable, List, Dict, Tuple, Optional, Any
 from dataclasses import asdict
 
-from ..core.db.db_client import DatabaseClient
+
 from .models import EntityMention, ResolvedEntity
 
 

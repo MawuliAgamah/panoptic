@@ -84,7 +84,7 @@ async def upload_document(
     processed_id: Optional[str] = None
     try:
         # Ingest using the convenience method, which returns the processed id
-        processed_id = client.upload_file(tmp_path)
+        processed_id = client.upload_file(tmp_path, kb_id=knowledgebase_id)
     finally:
         try:
             os.remove(tmp_path)
@@ -205,6 +205,7 @@ async def extract_knowledge_graph(
 async def upload_csv_document(
     file: UploadFile = File(...),
     document_id: Optional[str] = Form(None),
+    kb_id: Optional[str] = Form(None),
     client = Depends(get_kg_client),
 ):
     """Upload a CSV file, build a knowledge graph via the CSV pipeline route, and return a snapshot."""
@@ -234,7 +235,7 @@ async def upload_csv_document(
 
     # Parse tags from JSON string
     try:
-        processed_id = client.upload_file(temp_path)
+        processed_id = client.upload_file(temp_path, kb_id=kb_id)
         snapshot = client.get_graph_snapshot(document_id=processed_id)
     finally:
         try:

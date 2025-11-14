@@ -99,3 +99,25 @@ class Document:
 
         return " | ".join(context_parts) if context_parts else "Personal knowledge document"
 
+
+
+@dataclass
+class DocumentNew:
+    """New document data structure for the database.
+    
+    Types match the database schema:
+    - IDs are integers (or None for auto-increment)
+    - Dates are ISO format strings (or None)
+    - file_type must be one of: 'PDF', 'MD', 'TXT', 'CSV'
+    - status must be one of: 'pending', 'processing', 'completed', 'failed'
+    """
+    id: Optional[int]  # None for new inserts (auto-increment), int for updates
+    ontology_id: Optional[int]  # Foreign key to document_ontologies
+    kb_id: int  # Foreign key to knowledge_bases, NOT NULL
+    file_name: str  # NOT NULL
+    file_path: Optional[str]
+    file_type: str  # Must be 'PDF', 'MD', 'TXT', or 'CSV'
+    file_size: Optional[int]
+    file_hash: Optional[str]
+    status: str  # Must be 'pending', 'processing', 'completed', or 'failed'
+    processed_at: Optional[str]  # ISO format string or None

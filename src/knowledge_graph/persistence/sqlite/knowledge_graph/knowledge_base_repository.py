@@ -53,48 +53,76 @@ class SQLiteKnowledgeBaseRepository(KnowledgeBaseRepository):
         now = datetime.utcnow()
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.cursor()
-            cur.execute(
-                """
-                INSERT INTO knowledge_bases (slug, name, owner_id, description, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(owner_id, slug) DO UPDATE SET
-                    name = excluded.name,
-                    description = excluded.description,
-                    updated_at = excluded.updated_at
-                """,
-                (
-                    slug,
-                    name,
-                    owner_id,
-                    description,
-                    now.isoformat(),
-                    now.isoformat(),
-                ),
-            )
-            conn.commit()
-            # Get the inserted/updated ID
-            kb_id = cur.lastrowid
-            if not kb_id:
-                # If conflict occurred, fetch the existing ID
+            cur.execute("PRAGMA foreign_keys=ON")
+            
+            # Use RETURNING to get the ID directly (SQLite 3.35.0+)
+            try:
                 cur.execute(
-                    "SELECT id FROM knowledge_bases WHERE slug = ? AND (owner_id = ? OR (owner_id IS NULL AND ? IS NULL))",
-                    (slug, owner_id, owner_id)
+                    """
+                    INSERT INTO knowledge_bases (slug, name, owner_id, description, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(owner_id, slug) DO UPDATE SET
+                        name = excluded.name,
+                        description = excluded.description,
+                        updated_at = excluded.updated_at
+                    RETURNING id
+                    """,
+                    (
+                        slug,
+                        name,
+                        owner_id,
+                        description,
+                        now.isoformat(),
+                        now.isoformat(),
+                    ),
                 )
                 row = cur.fetchone()
                 kb_id = row[0] if row else None
+                conn.commit()
+            except sqlite3.OperationalError:
+                # Fallback for older SQLite versions that don't support RETURNING
+                cur.execute(
+                    """
+                    INSERT INTO knowledge_bases (slug, name, owner_id, description, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(owner_id, slug) DO UPDATE SET
+                        name = excluded.name,
+                        description = excluded.description,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        slug,
+                        name,
+                        owner_id,
+                        description,
+                        now.isoformat(),
+                        now.isoformat(),
+                    ),
+                )
+                conn.commit()
+                kb_id = cur.lastrowid
+                if kb_id == 0:
+                    # UPDATE happened, query for ID
+                    cur.execute(
+                        "SELECT id FROM knowledge_bases WHERE slug = ? AND (owner_id = ? OR (owner_id IS NULL AND ? IS NULL))",
+                        (slug, owner_id, owner_id)
+                    )
+                    row = cur.fetchone()
+                    kb_id = row[0] if row else None
         
-        created = self.get_by_slug(slug, owner_id=owner_id)
-        if not created:
-            # Fallback: create object manually if query fails
-            created = KnowledgeBase(
-                id=str(kb_id) if kb_id else "0",
-                name=name,
-                slug=slug,
-                owner_id=owner_id,
-                description=description,
-                created_at=now,
-                updated_at=now,
-            )
+        # Create KnowledgeBase object directly with the ID we got
+        if not kb_id:
+            raise ValueError(f"Failed to get knowledge base ID for slug={slug}")
+        
+        created = KnowledgeBase(
+            id=str(kb_id),
+            name=name,
+            slug=slug,
+            owner_id=owner_id,
+            description=description,
+            created_at=now,
+            updated_at=now,
+        )
         self._logger.info(f"KB(create) upserted kb_id={created.id} slug={created.slug}")
         return created
 

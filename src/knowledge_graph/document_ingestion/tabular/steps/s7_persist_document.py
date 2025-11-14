@@ -17,6 +17,6 @@ class PersistDocumentStep(PipelineStep):
             return context
         else:
             sqlite = SqlLite()  # uses default repo path resolution
-            doc_repo = sqlite.document_repository()
-            doc_repo.save_document(context.document)
+            doc_repo = sqlite.tabular_document_repository()
+            doc_repo.save_csv_profile(context.csv_profile)
         return context

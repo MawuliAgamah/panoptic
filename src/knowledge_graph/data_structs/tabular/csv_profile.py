@@ -26,6 +26,7 @@ class CSVProfile:
     delimiter/encoding, and a stable fingerprint for caching.
     """
 
+    document_id: Optional[int]  # Foreign key to documents table
     headers_original: List[str]
     headers_normalized: List[str]
     delimiter: str

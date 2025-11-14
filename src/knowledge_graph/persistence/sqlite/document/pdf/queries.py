@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS pdf_document (
 );
 """
 
-CREATE_DOCUMENT_CHUNKS_TABLE = """
+CREATE_PDF_DOCUMENT_CHUNKS_TABLE = """
 CREATE TABLE IF NOT EXISTS document_chunks (
   id               INTEGER PRIMARY KEY,
   pdf_document_id  INTEGER NOT NULL,
@@ -32,9 +32,7 @@ CREATE TABLE IF NOT EXISTS document_chunks (
 );
 """
 
-CREATE_INDEX_DOCUMENT_CHUNKS_DOC_IDX = """
-CREATE INDEX IF NOT EXISTS idx_doc_chunks_doc_idx ON document_chunks(pdf_document_id, chunk_index);
-"""
+
 
 UPSERT_PDF_DOCUMENT = """
 INSERT INTO pdf_document (
@@ -50,7 +48,7 @@ ON CONFLICT(id) DO UPDATE SET
   chunks = excluded.chunks;
 """
 
-INSERT_DOCUMENT_CHUNK = """
+INSERT_PDF_DOCUMENT_CHUNK = """
 INSERT INTO document_chunks (
   pdf_document_id, chunk_index, content, token_count, start_char, end_char, embedding_vector
 ) VALUES (?, ?, ?, ?, ?, ?, ?);
