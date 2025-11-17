@@ -68,7 +68,7 @@ class LoadCSVStep(PipelineStep):
         file_ext = os.path.splitext(filename)[1]  # Get extension with dot, e.g., ".csv"
         file_type_clean = file_ext.lstrip('.').upper() if file_ext else "CSV"  # "CSV"
 
-        logger.info(f"Loading a CSV document {filename} into database with id {doc_id_int}")
+
         csv_doc = DocumentNew(
             id=doc_id_int,  # Integer or None
             ontology_id=None,  # Will be set later when ontology is created
@@ -84,9 +84,7 @@ class LoadCSVStep(PipelineStep):
 
         sqlite = SqlLite(settings=get_settings())
         doc_repo = sqlite.document_repository()
-        logger.info(f"Saving CSV document {csv_doc} to database")
         doc_repo.save_document(csv_doc)
-
 
         # Attach and record summary
         context.set_document(csv_doc)

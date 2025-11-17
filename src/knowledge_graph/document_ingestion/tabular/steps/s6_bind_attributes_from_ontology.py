@@ -14,7 +14,7 @@ import logging
 from typing import Dict, Any, List
 import json
 from ...document_pipeline import DocumentPipelineContext, PipelineStep
-
+from knowledge_graph.logging_utils import green
 logger = logging.getLogger("knowledgeAgent.pipeline.csv.bind_attributes")
 
 
@@ -38,6 +38,8 @@ class BindAttributesFromOntologyStep(PipelineStep):
         )
 
     def run(self, context: DocumentPipelineContext) -> DocumentPipelineContext:
+        logger.info(green("--------------------------------- Step 5: Bind Attributes From Ontology---------------------------------"))
+        
         ontology: Dict[str, Any] = getattr(context, "ontology_specification", {}) or {}
         mapping: Dict[str, Any] = getattr(context, "mapping_spec", {}) or {}
         profile = getattr(context, "csv_profile", None)

@@ -1,242 +1,177 @@
-# AI Module - Knowledge Graph System
-
-> Intelligent document processing and knowledge graph construction with integrated Telegram bot and web visualization.
+# Knowledge Graph Application (KG Extract)
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
 
-AI-powered system that transforms unstructured documents into interactive knowledge graphs. Features include document processing, entity extraction, relationship mapping, Telegram bot integration, and real-time web visualization. The system uses OpenAI GPT models with fallback support for local processing.
+Application that ingests documents (PDF/MD/TXT) and tabular CSVs, then builds queryable knowledge graphs. Core principles:
+- Deterministic pipeline orchestration (ingestion, validation, transform, persistence)
+- Agent proposes ontology/mapping (human‑in‑the‑loop friendly), never writes directly
+- Canonical Document model for persistence; CSVDocument used as a tabular helper in pipeline
 
-## System Architecture
+## Architecture
 
 ```mermaid
 graph TB
-    subgraph "User Interfaces"
-        CLI[Command Line Interface]
-        TG[Telegram Bot]
-        WEB[Web Visualization]
+  %% User Interfaces
+  subgraph UI[User Interfaces]
+    FE[Frontend (Vue + Vite)]
+  end
+
+  %% Backend
+  subgraph BE[Backend (FastAPI)]
+    APIR[Routers: /api/documents, /api/extract-kg, /api/knowledgebase]
+    KGC[KnowledgeGraphClient]
+  end
+
+  %% Orchestration & Pipelines
+  subgraph PIPE[Document Ingestion]
+    PF[PipelineFactory.for_file()]
+    subgraph CSV[CSV Pipeline]
+      S1[s1 Load CSV]
+      S2[s2 Generate CSV Profile]
+      S3[s3 Analyse CSV (Agent)]
+      S4[s4 Generate Ontology (Agent)]
+      S5a[s5 Compile Mapping]
+      S5b[s5 Bind Attributes]
+      S6[s6 Populate Missing Keys]
+      S7[s7 Transform & Persist KG]
     end
-
-    subgraph "Core Services"
-        KC[KnowledgeGraphClient]
-        DS[DocumentService]
-        LS[LLMService]
+    subgraph GEN[General Docs]
+      G1[Load/Clean/Chunk]
+      G2[Extract KG]
+      G3[Persist]
     end
+  end
 
-    subgraph "Processing Pipeline"
-        DM[DocumentManager]
-        DP[DocumentProcessor]
-        KGE[KG Extractor]
-    end
+  %% Persistence
+  subgraph DB[Persistence]
+    SQL[(SQLite: documents/chunks/KG)]
+    JS[(JSON KB registry)]
+    NEO[(Neo4j stub)]
+  end
 
-    subgraph "Data Storage"
-        JSON[(JSON Store)]
-        FILES[Document Cache]
-    end
+  %% LLM/Agent
+  AG[Agent + LLMService]
 
-    CLI --> KC
-    TG --> KC
-    WEB --> JSON
-
-    KC --> DS
-    KC --> LS
-
-    DS --> DM
-    DS --> DP
-    LS --> KGE
-
-    DP --> FILES
-    KGE --> JSON
+  FE --> APIR
+  APIR --> KGC
+  KGC --> PF
+  PF --> CSV
+  PF --> GEN
+  S3 --> AG
+  S4 --> AG
+  CSV --> SQL
+  GEN --> SQL
+  KGC --> JS
+  KGC -. optional .-> NEO
 ```
 
 ## Key Features
 
-- **Document Processing**: Support for .md, .txt, .pdf, .docx files
-- **AI-Powered Extraction**: OpenAI GPT integration with fallback modes
-- **Knowledge Graphs**: Entity and relationship extraction with deduplication
-- **Telegram Bot**: Process documents via chat interface
-- **Web Visualization**: Interactive D3.js-powered graph viewer
-- **JSON Storage**: File-based storage with no database dependencies
-- **Incremental Updates**: Append new documents to existing knowledge graphs
+- Document ingestion for Markdown, Text, PDF; dedicated CSV pipeline
+- Agent-assisted ontology and mapping proposal; human-in-the-loop friendly
+- Deterministic, step-based orchestration with contextual logging (doc/run IDs)
+- SQLite persistence for documents, chunks, and knowledge graphs; JSON/Neo4j stubs
+- FastAPI backend with upload and extraction endpoints
+- Frontend (Vue + Vite) for uploading, exploring, and visualizing graphs
 
-## Technical Requirements
+## CSV Flow (high level)
+1) Upload CSV → `client.add_document(file_path)` auto‑generates `doc_id`
+2) Pipeline: Load → Profile → Agent Analyze → Ontology → Mapping → Bind Attrs → Populate Keys → Transform & Persist
+3) (Planned) Human‑in‑the‑loop: multiple proposals, validation, dry‑run, approval, reuse by dataset fingerprint
 
-- **Python**: 3.9+
-- **Package Manager**: UV (recommended) or pip
-- **LLM API**: OpenAI API key (optional - has fallback modes)
-- **Telegram Bot**: Bot token (optional)
+## Logging
+- Root logger includes InjectContextFilter; all log lines include `doc=... run=...` when available
+- Steps log concise summaries; ontology/mapping printed (pretty JSON)
+- Control analysis preview size with `KG_AGENT_ANALYSIS_LOG_MAX` (default 2000 chars)
+- Override log file via `KG_LOG_FILE` (defaults to `logs/app.log`)
 
-### Core Dependencies
-- **AI/ML**: `kggen`, `litellm`, `openai`
-- **Processing**: `pydantic`, `unstructured`, `python-dotenv`
-- **Storage**: File-based JSON (no database server required)
-- **Visualization**: D3.js, HTML5
-- **Bot**: `python-telegram-bot`
+## Requirements
 
-## Installation & Setup
+- Python 3.9+
+- Node 18+ for frontend
+- UV or pip for Python deps; npm for frontend
 
-### Quick Start
+## Setup
+
+### Backend
+- Create and populate a virtualenv; then:
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd aiModule
+uv sync  # or: pip install -e .
 
-# Install dependencies with UV (recommended)
-uv sync
-
-# Or with pip
-pip install -e .
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your API keys:
-# OPENAI_API_KEY=your-openai-key
-# TELEGRAM_BOT_TOKEN=your-bot-token (optional)
+# Start API (FastAPI + Uvicorn)
+bash .startapi.sh
+# or
+PYTHONPATH=src uvicorn application.api.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
-### Environment Configuration
-Create a `.env` file with:
+Environment variables (optional):
+- `OPENAI_API_KEY`: LLM key if using LLM-backed steps
+- `KG_LOG_FILE`: Filepath for logs (defaults to `logs/app.log`)
+- `KG_AGENT_ANALYSIS_LOG_MAX`: Limit agent analysis preview length (default 2000)
+- `KG_TOOLS_LOG_PREVIEW=1`: Enable CSV preview logging from shared tools
+
+### Frontend
 ```bash
-# Required for AI extraction (optional - has fallback)
-OPENAI_API_KEY=sk-your-openai-api-key
+cd frontend
+npm install
+VITE_BACKEND_URL=http://127.0.0.1:8001 npm run dev
+```
+Optional Google Drive integration:
+- `VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_API_KEY` if using Drive picker features
 
-# Optional for Telegram bot
-TELEGRAM_BOT_TOKEN=your-telegram-bot-token
+## API Endpoints
+- `POST /api/documents/upload-csv` (multipart/form-data): Ingest CSV via CSV pipeline
+- `POST /api/extract-kg` (multipart/form-data): Generic file ingestion and KG extraction
+- `POST /api/documents/upload`: Generic document upload with optional KB association
+- `POST /api/documents/register`: Register external/remote docs metadata
+- `GET /api/documents`: List registered docs (in-memory demo registry)
 
-# Optional LLM provider override
-KG_LLM_PROVIDER=openai  # or 'ollama' or 'mock'
+Example (CSV upload):
+```bash
+curl -F "file=@data.csv" -F "kb_id=my_kb" http://127.0.0.1:8001/api/documents/upload-csv
 ```
 
-## Usage
-
-### Command Line Interface
-
-#### Process Documents
-```bash
-# Process a single document
-python src/main.py process "path/to/document.md"
-python src/main.py process "~/Documents/research.pdf"
-
-# Multiple documents (append to existing knowledge graph)
-python src/main.py process "document1.txt"
-python src/main.py process "document2.md"  # Adds to existing graph
-```
-
-#### Query Knowledge Graph
-```bash
-# Search entities and relationships
-python src/main.py query "machine learning"
-python src/main.py query "Python programming"
-python src/main.py query "artificial intelligence"
-```
-
-#### Telegram Bot
-```bash
-# Start the Telegram bot
-python src/main.py telegram
-```
-
-#### Web Visualization
-```bash
-# Start the visualization server
-cd src/vis
-uv run server.py
-
-# Open browser to: http://localhost:<port>/src/vis/index.html
-```
-
-### Python API
+## Python Client
 ```python
-from knowledge_graph import create_json_client
+from knowledge_graph import create_client
+from knowledge_graph.settings.settings import Settings
 
-# Process a document
-with create_json_client() as client:
-    doc_id = client.add_document(
-        document_path="research.md",
-        document_id="research_doc",
-        document_type="markdown"
-    )
-
-    # Extract knowledge graph
-    client.extract_document_ontology(doc_id)
-
-    # Query the results
-    entities = client.search_entities("AI")
-    relationships = client.search_relationships("machine learning")
+client = create_client(settings=Settings())
+kb = client.create_knowledgebase("demo").id
+doc_id = client.add_document("/path/to/data.csv", kb_id=kb)
+snapshot = client.get_graph_snapshot(document_id=doc_id)
 ```
 
-## Web Visualization Features
+## Supported File Types
+- CSV (tabular pipeline)
+- Markdown (.md)
+- Text (.txt)
+- PDF (.pdf)
 
-The interactive web visualization (`src/vis/`) provides:
-
-- **Interactive Graph**: Drag, zoom, and click nodes
-- **Real-time Search**: Filter by document or entity type
-- **Statistics Dashboard**: Entity and relationship counts
-- **Visual Customization**: Adjust force physics and node sizes
-- **Responsive Design**: Works on desktop and mobile
-- **Auto-refresh**: Reflects changes from new document processing
-
-### Visualization Controls
-- **Zoom**: Mouse wheel or touchpad gestures
-- **Pan**: Click and drag empty areas
-- **Node Selection**: Click nodes to highlight connections
-- **Force Adjustment**: Use sliders to modify graph physics
-- **Document Filter**: Dropdown to show entities from specific documents
-
-## Data Storage
-
-Knowledge graphs are stored in `/database/knowledge_store.json`:
-```json
-{
-  "entities": [
-    {
-      "id": 1,
-      "name": "machine learning",
-      "type": "extracted",
-      "document_ids": ["doc1", "doc2"],
-      "metadata": {...}
-    }
-  ],
-  "relationships": [
-    {
-      "id": 1,
-      "source_entity": "Python",
-      "relation_type": "used for",
-      "target_entity": "machine learning",
-      "document_ids": ["doc1"]
-    }
-  ]
-}
+## Project Structure (high level)
 ```
-
-## Supported File Formats
-
-- **Markdown** (.md): Full support with metadata extraction
-- **Text** (.txt): Plain text processing
-- **PDF** (.pdf): Text extraction with layout preservation
-- **Word** (.docx): Document structure and content extraction
-
-## Project Structure
-
-```
-aiModule/
+.
 ├── src/
-│   ├── main.py                 # CLI entry point
-│   ├── knowledge_graph/        # Core KG services
-│   ├── bots/                  # Telegram bot integration
-│   ├── services/              # JSON knowledge store
-│   └── vis/                   # Web visualization
-├── database/
-│   └── knowledge_store.json   # Knowledge graph storage
-├── examples/                  # Sample documents
-└── tests/                     # Unit tests
+│   ├── application/
+│   │   └── api/                 # FastAPI app + routers
+│   └── knowledge_graph/         # Core package (client, config, pipelines, persistence)
+├── frontend/                    # Vue + Vite frontend
+├── database/                    # SQLite databases and JSON registry
+├── logs/                        # app.log (configurable via KG_LOG_FILE)
+└── docs/                        # docs and design notes
 ```
+
+## Design Notes
+- CSVs may have empty `raw_content`/`clean_content`; persist minimal Document rows
+- Prefer joins using target entity keys; normalize join_columns where needed
+- Synthesized keys are deterministic (composite/hash) for derived entities
+- Validation checks header existence, join integrity, key availability; logs warnings
 
 ## License
-MIT License - see [LICENSE.txt](LICENSE.txt) for details.
-
+MIT License – see LICENSE.txt for details.
 
 
 

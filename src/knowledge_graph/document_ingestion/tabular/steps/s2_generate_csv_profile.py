@@ -14,6 +14,7 @@ from ....data_structs.tabular import CSVProfile, ColumnStat
 from ..agents_tools import sniff_csv, read_rows
 from knowledge_graph.persistence.sqlite.sql_lite import SqlLite
 from knowledge_graph.settings.settings import get_settings
+from knowledge_graph.logging_utils import green
 
 
 logger = logging.getLogger("knowledgeAgent.pipeline.csv.profile")
@@ -30,6 +31,8 @@ class GenerateCsvProfileStep(PipelineStep):
         return self.enabled and context.document is not None
 
     def run(self, context: DocumentPipelineContext) -> DocumentPipelineContext:
+        logger.info(green("--------------------------------- Step 2: generate_csv_profile---------------------------------"))
+
         document = context.ensure_document()
 
         # Ensure document has an ID (should be set in previous step)
@@ -42,6 +45,11 @@ class GenerateCsvProfileStep(PipelineStep):
         rows = read_rows(document.file_path, delim, limit=self.sample_rows + 1)
         headers: List[str] = rows[0] if rows else []
         data_rows: List[List[str]] = rows[1:] if rows else []
+
+        logger.debug(f"headers: {headers}")
+        logger.debug(f"data_rows: {data_rows}")
+        logger.debug(f"delim: {data_rows}")
+
 
         profile = CSVProfile(
             document_id=document.id,  # Integer foreign key to documents table
@@ -71,7 +79,6 @@ class GenerateCsvProfileStep(PipelineStep):
             "delimiter": profile.delimiter,
         }
 
-        logger.info("%s: CSV profile built headers=%d rows_sampled=%d delim='%s'",
-                    document.id, len(headers), len(data_rows), profile.delimiter)
+
         return context
 

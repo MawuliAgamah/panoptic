@@ -20,12 +20,75 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 import os
 import re
+import random
 import logging
 import time
 
 
 logger = logging.getLogger("knowledgeAgent.agent.csv")
 
+
+# --- Prompt
+
+PROMPT_TEMPLATE = """
+
+You are a data modeling expert specializing in knowledge graph design. 
+
+
+Analyze the CSV structure below to inform knowledge graph ontology design.
+
+## Dataset Information:
+File: {os.path.abspath(path)}
+Delimiter: {delim}
+Columns: {', '.join(headers)}
+
+## Sample Data:
+```markdown
+{sample_md}
+```
+
+## Required Analysis:
+### 1. ENTITY IDENTIFICATION
+For each potential entity:
+                - Entity name and description
+- Which columns belong to this entity
+- Suggested primary key (single column or composite)
+- Justification for entity boundary
+
+### 2. COLUMN CLASSIFICATION
+For each column, identify:
+- **Entity assignment**: Which entity does it belong to?
+- **Role**: Intrinsic attribute | Foreign key | Derived/calculated | Temporal context
+- **Data type**: string | integer | float | boolean | date | datetime | enum
+- **Cardinality**: Unique values (high/medium/low) if observable from sample
+- **Nullability**: Required or optional (if determinable)
+
+### 3. RELATIONSHIP DETECTION
+For each relationship:
+    - Source entity -> Target entity
+    - Relationship name (use semantic verbs: belongs_to, contains, references, etc.)
+- Cardinality: one-to-one | one-to-many | many-to-one | many-to-many
+- Join columns: Specify exact source and target column names
+- Is this an identifying relationship (part of source entity's key)?
+### 4. DATA PATTERNS & ANOMALIES
+Note:
+- Redundant/denormalized data (same info in multiple columns)
+- Hierarchical relationships (parent-child in column names)
+- Missing unique identifiers for potential entities  
+- Suspicious patterns (mixed types, inconsistent naming, null-heavy columns)
+- Columns that might represent many-to-many relationships
+- Temporal or versioning patterns (season, date, version fields)
+
+### 5. NORMALIZATION OPPORTUNITIES
+Identify:
+- Lookup table candidates (repeated categorical values)  
+- Composite entities (junction tables for many-to-many)
+- Attributes that should be separate entities
+
+## Output Format
+Provide analysis in clear sections as outlined above. Be specific with column names and relationships.
+Limit total response to 400 words while maintaining completeness.
+"""
 
 # --- Data structures ---
 
@@ -236,13 +299,127 @@ class CsvAnalysisAgent:
         headers = rows[0]
         data = rows[1:]
 
-        # Build a compact sample (avoid huge prompts)
-        preview_lines = [headers] + data[:sample_rows]
-        # Render as CSV text with the detected delimiter
+        # Build a compact sample (avoid huge prompts); use random sampling of data rows
+        sample_rows_count = min(sample_rows, len(data))
+        selected_rows = random.sample(data, sample_rows_count) if sample_rows_count > 0 else []
+        preview_lines = [headers] + selected_rows
+        # Render as Markdown table for improved LLM readability
         delim = getattr(dialect, "delimiter", ",") or ","
-        rendered = "\n".join(delim.join(map(str, r[: len(headers)])) for r in preview_lines)
-        logger.info("[agent] prompt sample built columns=%d rows_in_prompt=%d prompt_chars=%d",
-                    len(headers), len(preview_lines) - 1, len(rendered))
+
+        def _to_markdown_table(hdrs, rows_, *, max_cols=None, cell_max_len=120):
+            """Convert a csv to a markdown table."""
+            try:
+                cols = min(len(hdrs), max_cols) if max_cols else len(hdrs)
+                def _san(x):
+                    s = "" if x is None else str(x)
+                    s = s.replace("|", "\\|").replace("\n", " ")
+                    return s if len(s) <= cell_max_len else s[: cell_max_len - 1] + "…"
+                hdr_row = "| " + " | ".join(_san(h) for h in hdrs[:cols]) + " |"
+                sep_row = "| " + " | ".join(["---"] * cols) + " |"
+                body_rows = []
+                for r in rows_:
+                    # normalize row length
+                    rr = list(r)[:cols] + [""] * max(0, cols - len(r))
+                    body_rows.append("| " + " | ".join(_san(v) for v in rr) + " |")
+                return "\n".join([hdr_row, sep_row] + body_rows)
+            except Exception:
+                # Fallback to simple CSV-like rendering
+                return "\n".join(delim.join(map(str, r[: len(hdrs)])) for r in ([hdrs] + list(rows_)))
+
+        sample_md = _to_markdown_table(headers, selected_rows)
+        logger.info(
+            "[agent] prompt sample built columns=%d rows_in_prompt=%d prompt_chars=%d",
+            len(headers),
+            len(selected_rows),
+            len(sample_md),
+        )
+
+        # Write prompt, headers, and a CSV sample to a unified file first
+        debug_out_path = None
+        try:
+            logs_dir = "/Users/mawuliagamah/gitprojects/pre_release/kg_extract/logs"
+            os.makedirs(logs_dir, exist_ok=True)
+            _ts = int(time.time())
+            debug_out_path = os.path.join(logs_dir, f"analysis_text_{_ts}.txt")
+            # Build sample text from randomly selected rows (header already separate)
+            sample_text = "\n".join(delim.join(map(str, r[: len(headers)])) for r in selected_rows)
+            # Compose the full prompt text using a raw template
+            prompt_text = f"""
+You are a data modeling expert specializing in knowledge graph design.
+
+Analyze the CSV structure below to inform knowledge graph ontology design.
+
+## Dataset Information:
+File: {os.path.abspath(path)}
+Delimiter: {delim}
+Columns: {', '.join(headers)}
+
+## Sample Data:
+```markdown
+{sample_md}
+```
+
+## Required Analysis:
+### 1. ENTITY IDENTIFICATION
+For each potential entity:
+- Entity name and description
+- Which columns belong to this entity
+- Suggested primary key (single column or composite)
+- Justification for entity boundary
+
+### 2. COLUMN CLASSIFICATION
+For each column, identify:
+- **Entity assignment**: Which entity does it belong to?
+- **Role**: Intrinsic attribute | Foreign key | Derived/calculated | Temporal context
+- **Data type**: string | integer | float | boolean | date | datetime | enum
+- **Cardinality**: Unique values (high/medium/low) if observable from sample
+- **Nullability**: Required or optional (if determinable)
+
+### 3. RELATIONSHIP DETECTION
+For each relationship:
+- Source entity -> Target entity
+- Relationship name (use semantic verbs: belongs_to, contains, references, etc.)
+- Cardinality: one-to-one | one-to-many | many-to-one | many-to-many
+- Join columns: Specify exact source and target column names
+- Is this an identifying relationship (part of source entity's key)?
+
+### 4. DATA PATTERNS & ANOMALIES
+Note:
+- Redundant/denormalized data (same info in multiple columns)
+- Hierarchical relationships (parent-child in column names)
+- Missing unique identifiers for potential entities
+- Suspicious patterns (mixed types, inconsistent naming, null-heavy columns)
+- Columns that might represent many-to-many relationships
+- Temporal or versioning patterns (season, date, version fields)
+
+### 5. NORMALIZATION OPPORTUNITIES
+Identify:
+- Lookup table candidates (repeated categorical values)
+- Composite entities (junction tables for many-to-many)
+- Attributes that should be separate entities
+
+## Output Format
+Provide analysis in clear sections as outlined above. Be specific with column names and relationships.
+Limit total response to 400 words while maintaining completeness.
+"""
+            with open(debug_out_path, "w", encoding="utf-8") as f:
+                f.write("=== Prompt ===\n")
+                f.write(prompt_text + "\n\n")
+                f.write("=== Headers ===\n")
+                f.write(delim.join(map(str, headers)) + "\n\n")
+                # f.write(f"=== Sample (first {sample_rows_count} rows) ===\n")
+                # if sample_text:
+                #     f.write(sample_text + "\n")
+            logger.info("[agent] prompt, headers, and sample written to %s", debug_out_path)
+            # Expose the path so downstream ontology generation can append to the same file
+            try:
+                os.environ["KG_LAST_ANALYSIS_LOG"] = debug_out_path
+            except Exception:
+                pass
+        except Exception:
+            logger.warning("[agent] failed to write headers/sample to logs directory", exc_info=True)
+
+
 
         # Lazy import to avoid hard dependency at import time
         from knowledge_graph.llm.service import LLMService
@@ -250,37 +427,24 @@ class CsvAnalysisAgent:
 
         svc = llm_service or LLMService()
 
+        # Build a prompt with the fully-rendered human content
         prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a data modeling assistant. Be precise and concise."),
-            (
-                "human",
-                (
-                    "Analyze the CSV columns and sample rows below.\n"
-                    "- Identify likely column types and meanings.\n"
-                    "- Suggest potential primary keys and foreign keys.\n"
-                    "- Propose candidate entities and relationships for a knowledge graph.\n"
-                    "- Note any anomalies (nulls, mixed types, suspicious ids).\n"
-                    "Keep it under 250 words.\n\n"
-                    "File: {path}\n"
-                    "Delimiter: {delimiter}\n"
-                    "Columns: {columns}\n\n"
-                    "Sample (CSV):\n```csv\n{sample}\n```"
-                ),
-            ),
+            ("human", prompt_text)
         ])
 
         chain = prompt | svc.llm
-        logger.info("[agent] LLM invoke…")
-        response = chain.invoke(
-            {
-                "path": os.path.abspath(path),
-                "delimiter": delim,
-                "columns": ", ".join(headers),
-                "sample": rendered,
-            }
-        )
+        response = chain.invoke({})
         # LangChain ChatOpenAI returns a AIMessage with .content
         text = getattr(response, "content", None) or str(response)
+        # Append the agent analysis to the same file
+        try:
+            if debug_out_path:
+                with open(debug_out_path, "a", encoding="utf-8") as f:
+                    f.write("\n=== Agent Analysis ===\n")
+                    f.write(text or "")
+                logger.info("[agent] analysis details written to %s", debug_out_path)
+        except Exception:
+            logger.warning("[agent] failed to append analysis text to logs directory", exc_info=True)
         logger.info("[agent] analyze_with_llm done chars=%d elapsed_ms=%d", len(text or ""), int((time.time() - t0) * 1000))
         return text
 

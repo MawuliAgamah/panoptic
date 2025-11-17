@@ -7,7 +7,7 @@ from ...document_pipeline import DocumentPipelineContext, PipelineStep
 from knowledge_graph.agent.agent import CsvAnalysisAgent
 from knowledge_graph.logging_utils import red
 logger = logging.getLogger("knowledgeAgent.pipeline.csv.agent_analyze")
-
+from knowledge_graph.logging_utils import green
 import os
 
 class AnalyseCsvWithAgentStep(PipelineStep):
@@ -18,7 +18,7 @@ class AnalyseCsvWithAgentStep(PipelineStep):
         self.sample_rows = sample_rows
 
     def run(self, context: DocumentPipelineContext) -> DocumentPipelineContext:
-        logger.info(red("STEP 3: Analyse CSV with Agent"))
+        logger.info(green("--------------------------------- Step 3: Analyse CSV with Agent---------------------------------"))
         document = context.ensure_document()
         agent = CsvAnalysisAgent()
         try:
@@ -36,7 +36,7 @@ class AnalyseCsvWithAgentStep(PipelineStep):
             max_chars = int(os.getenv("KG_AGENT_ANALYSIS_LOG_MAX", "2000") or 2000)
             snippet = (analysis_text or "")[:max_chars]
             more = "" if not analysis_text or len(analysis_text) <= max_chars else f"\n… (+{len(analysis_text) - max_chars} more chars)"
-            logger.info("%s: agent analysis preview (first %d chars):\n%s%s", document.id, max_chars, snippet, more)
+            logger.debug("Agent analysis preview (first %d chars):\n%s%s", document.id, max_chars, snippet, more)
 
             context.results[self.name] = {
                 "ok": True,

@@ -11,6 +11,7 @@ import json
 import logging
 import re
 from typing import Any, Dict, Optional
+import os
 
 
 logger = logging.getLogger("knowledgeAgent.agent.ontology")
@@ -76,7 +77,9 @@ SCHEMA_DESC = {
 #     "CSV Analysis:\n{analysis}\n"
 # )
 
-PROMPT_TEMPLATE = ("""You are an expert ontology engineer. Analyze the CSV column data below and generate a precise JSON ontology.
+PROMPT_TEMPLATE = ("""
+
+You are an expert ontology engineer. Analyze the CSV column data below and generate a precise JSON ontology.
 
   ## Output Format (strict JSON, no markdown, no explanatory text):
 
@@ -133,8 +136,35 @@ PROMPT_TEMPLATE = ("""You are an expert ontology engineer. Analyze the CSV colum
       - enum_values for categorical fields
       - min/max for bounded numeric fields
       - pattern for formatted strings (emails, phone numbers)
+    
+    ## CRITICAL VALIDATION RULES:
+
+1. **Identify the grain**: What does each CSV row represent? This becomes your primary event/fact entity.
+   - If rows are transactions/events → create event entity with composite key or auto-generated ID
+   - Mark event entities with "is_event": true
+
+
+2. **Account for ALL columns**: 
+   - Every CSV column must appear in exactly one entity as an attribute OR as part of a relationship
+   - List all columns in metadata.columns_accounted_for to verify
+
+   3. **Foreign keys as attributes**:
+   - If column X references entity Y's primary key, include X as an attribute in the source entity
+   - Mark it with 'constraints': {{'foreign_key': true}}
+   - Example: Shot entity must have PLAYER_ID, TEAM_ID, GAME_ID as attributes
+
+4. **Relationship join columns**:
+   - source_col: The FK column in the source entity (must exist as attribute)
+   - target_col: The PK column in the target entity (must match target's primary_key)
+   - Never use comma-separated strings; create separate relationships instead
+
+5. **Composite keys**:
+   - Use array format: 'primary_key': ['col1', 'col2', 'col3']
+   - Common for event entities without natural single-column keys
 
   ## CSV Column Analysis:
+
+  Here is the analysis you have been presented with : 
 
   {analysis}
 
@@ -162,16 +192,33 @@ def generate_ontology_from_analysis(analysis_text: str, *, llm_service: Optional
     Returns a dict with keys 'entities', 'relationships', and optional 'notes'.
     On parse error, returns {'raw': <llm_text>}.
     """
-    from knowledge_graph.llm.service import LLMService
-    from langchain_core.prompts import ChatPromptTemplate
+from knowledge_graph.llm.service import LLMService
+from langchain_core.prompts import ChatPromptTemplate
 
-    logger.info("[ontology] generate_ontology_from_analysis start chars=%d", len(analysis_text or ""))
-    svc = llm_service or LLMService()
+    svc = LLMService()
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", "You are precise and schema-faithful."),
         ("human", PROMPT_TEMPLATE),
     ])
+    # write the fully rendered ontology prompt to the current analysis log
+    try:
+        log_path = os.getenv("KG_LAST_ANALYSIS_LOG")
+        if log_path:
+            prompt_system = "You are precise and schema-faithful."
+            # Render a human-visible prompt by substituting the analysis and un-escaping double braces
+            try:
+                human_rendered = PROMPT_TEMPLATE.replace("{analysis}", analysis_text)
+                human_rendered = human_rendered.replace("{{", "{").replace("}}", "}")
+            except Exception:
+                human_rendered = PROMPT_TEMPLATE
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write("\n\n=== Ontology Prompt (system) ===\n")
+                f.write(prompt_system + "\n\n")
+                f.write("=== Ontology Prompt (human) ===\n")
+                f.write(human_rendered + "\n")
+    except Exception:
+        logger.warning("[ontology] failed to append ontology prompt to analysis log", exc_info=True)
 
     chain = prompt | svc.llm
     resp = chain.invoke({"analysis": analysis_text})
@@ -190,7 +237,17 @@ def generate_ontology_from_analysis(analysis_text: str, *, llm_service: Optional
             len(obj.get("entities") or []),
             len(obj.get("relationships") or []),
         )
+        # Append the parsed ontology to the same analysis log file, if available
+        try:
+            log_path = os.getenv("LOGS_DIR")
+            if log_path:
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write("\n\n=== Ontology  ===\n")
+                    f.write(json.dumps(obj, indent=2))
+        except Exception:
+            logger.warning("[ontology] failed to append ontology to analysis log", exc_info=True)
         return obj
+        
     except Exception as exc:
         logger.exception("[ontology] JSON parse failed: %s", exc)
         return {"raw": text}
@@ -209,4 +266,3 @@ __all__ = [
     "generate_ontology_from_analysis",
     "format_ontology_pretty",
 ]
-

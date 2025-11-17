@@ -19,8 +19,8 @@ from .tabular.steps import (
     GenerateCsvProfileStep,
     AnalyseCsvWithAgentStep,
     GenerateOntologyWithAgentStep,
-    GenerateMappingFromOntologyStep,
     BindAttributesFromOntologyStep,
+    GenerateMappingFromOntologyStep,
     PopulateMissingPrimaryKeysStep,
     TransformAndPersistKGStep,
 )

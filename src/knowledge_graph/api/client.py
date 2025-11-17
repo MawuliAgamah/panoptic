@@ -24,6 +24,7 @@ import json as _json
 import re as _re
 import os as _os
 from ..settings.settings import Settings
+from ..logging_utils import green
 import logging
 logger = logging.getLogger(__name__)
 
@@ -41,8 +42,6 @@ class KnowledgeGraphClient:
         """
         # Store settings first so it's available for _initialise_db()
         self.settings = settings
-        # self._configure_logging(self.config.log_level)
-        self._initialize_services()
         self._initialise_db()
         self.kb_repo = self.sql_lite.knowledge_base_repository()
             
@@ -51,52 +50,10 @@ class KnowledgeGraphClient:
         self.sql_lite = SqlLite(self.settings)
         self.sql_lite.create_tables()
         
-        
-        
     
-    def _initialize_services(self) -> None:
-        """Initialize all required services."""
-        from ..llm.service import LLMService
-        from ..knowledge_graph.service import KnowledgeGraphService
-        from ..llm.kg_extractor.service import KGExtractionService
-
-        # Initialize LLM service with new config structure
-        # llm_config_dict = self.config.llm.__dict__ if self.config.llm else {}
-        # self.llm_service = LLMService(config=llm_config_dict)
-
-        # Initialize KG extraction service with kggen integration
-        # kg_extraction_config = self.config.kg_extraction.__dict__ if self.config.kg_extraction else {}
-        # llm_provider = self.config.llm.provider if self.config.llm else "openai"
-
-        # self.kg_extraction_service = KGExtractionService(
-        #     llm_provider=llm_provider,
-        #     **{**llm_config_dict, **kg_extraction_config}
-        # ) 
-
-        # Initialize knowledge graph and document services
-        logger.info("Initializing knowledge graph service")
-        # self.knowledge_graph_service = KnowledgeGraphService(
-        #     db_client=self.db_client,
-        #     llm_service=self.llm_service,
-        #     llm_provider=llm_provider,
-        #     kg_extraction_config=kg_extraction_config
-        # )
-
-        # Prepare pipeline configuration (used by factory-built pipelines)
-        # pipeline_settings = getattr(self.config, 'document_pipeline', None)
-        # self.pipeline_config = DocumentPipelineConfig(
-        #     enable_enrichment=getattr(pipeline_settings, 'enable_enrichment', True),
-        #     enable_kg_extraction=getattr(pipeline_settings, 'enable_kg_extraction', True),
-        #     enable_persistence=getattr(pipeline_settings, 'enable_persistence', True),
-        #     chunk_size=getattr(pipeline_settings, 'chunk_size', 1000),
-        #     chunk_overlap=getattr(pipeline_settings, 'chunk_overlap', 200),
-        #     chunker_type=getattr(pipeline_settings, 'chunker_type', 'auto'),
-        # )
-        # Keep llm_provider for pipeline services construction
-        # self.llm_provider = llm_provider
-
     # Document Operations
     def add_document(self, document_path: str,kb_id: str) -> str:
+        logger.debug(green("--------------------------------- Add Document---------------------------------"))
         """Add a document to the knowledge graph using the appropriate pipeline.
 
         Auto-generates a document ID and routes to a CSV or general pipeline
@@ -104,7 +61,7 @@ class KnowledgeGraphClient:
 
         Returns the generated document ID.
         """
-        logger.info(f"Adding document: {document_path}")
+        
         document_id = f"doc_{_uuid.uuid4().hex[:8]}"
         pipeline = PipelineFactory.for_file(document_path)
         
@@ -113,7 +70,8 @@ class KnowledgeGraphClient:
             document_id=document_id,
             kb_id=kb_id,
         )            
-        logger.info(f"Document added with ID: {document_id}")
+        logger.info(f"Document ID: {document_id}")
+        logger.info(f"kb ID: {kb_id}")
         return document_id
 
     def upload_file(self, file_path: str, kb_id: str) -> str:
