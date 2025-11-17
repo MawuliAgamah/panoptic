@@ -118,3 +118,9 @@ lib/
 lib64/
 share/
 pyvenv.cfg
+
+# Ignore selected src submodules
+src/flashcards/
+src/web/
+src/bots/
+src/services/

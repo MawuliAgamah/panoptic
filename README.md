@@ -14,46 +14,41 @@ Application that ingests documents (PDF/MD/TXT) and tabular CSVs, then builds qu
 
 ```mermaid
 graph TB
-  %% User Interfaces
-  subgraph User_Interfaces
+  subgraph UI
     FE[Frontend]
   end
 
-  %% Backend
   subgraph Backend
     APIR[API Routers]
-    KGC[KnowledgeGraphClient]
+    KGC[KG Client]
   end
 
-  %% Orchestration & Pipelines
   subgraph Pipelines
-    PF[PipelineFactory.for_file()]
+    PF[PipelineFactory for file]
     subgraph CSV
       S1[Load CSV]
-      S2[Generate CSV Profile]
-      S3[Analyse CSV (Agent)]
-      S4[Generate Ontology (Agent)]
+      S2[CSV Profile]
+      S3[Analyze CSV Agent]
+      S4[Generate Ontology]
       S5a[Compile Mapping]
       S5b[Bind Attributes]
-      S6[Populate Missing Keys]
-      S7[Transform & Persist KG]
+      S6[Populate Keys]
+      S7[Transform and Persist]
     end
     subgraph General
-      G1[Load/Clean/Chunk]
+      G1[Load Clean Chunk]
       G2[Extract KG]
       G3[Persist]
     end
   end
 
-  %% Persistence
   subgraph Persistence
     SQL[(SQLite)]
-    JS[(JSON KB Registry)]
+    JS[(JSON KB)]
     NEO[(Neo4j Stub)]
   end
 
-  %% LLM/Agent
-  AG[Agent + LLMService]
+  AG[Agent and LLM Service]
 
   FE --> APIR
   APIR --> KGC
@@ -65,7 +60,7 @@ graph TB
   S7 --> SQL
   G3 --> SQL
   KGC --> JS
-  KGC -.-> NEO
+  KGC --> NEO
 ```
 
 ## Key Features
@@ -172,7 +167,6 @@ snapshot = client.get_graph_snapshot(document_id=doc_id)
 
 ## License
 MIT License – see LICENSE.txt for details.
-
 
 
 
