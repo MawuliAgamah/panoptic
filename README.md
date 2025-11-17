@@ -15,30 +15,30 @@ Application that ingests documents (PDF/MD/TXT) and tabular CSVs, then builds qu
 ```mermaid
 graph TB
   %% User Interfaces
-  subgraph UI[User Interfaces]
-    FE[Frontend (Vue + Vite)]
+  subgraph User_Interfaces
+    FE[Frontend]
   end
 
   %% Backend
-  subgraph BE[Backend (FastAPI)]
-    APIR[Routers: /api/documents, /api/extract-kg, /api/knowledgebase]
+  subgraph Backend
+    APIR[API Routers]
     KGC[KnowledgeGraphClient]
   end
 
   %% Orchestration & Pipelines
-  subgraph PIPE[Document Ingestion]
+  subgraph Pipelines
     PF[PipelineFactory.for_file()]
-    subgraph CSV[CSV Pipeline]
-      S1[s1 Load CSV]
-      S2[s2 Generate CSV Profile]
-      S3[s3 Analyse CSV (Agent)]
-      S4[s4 Generate Ontology (Agent)]
-      S5a[s5 Compile Mapping]
-      S5b[s5 Bind Attributes]
-      S6[s6 Populate Missing Keys]
-      S7[s7 Transform & Persist KG]
+    subgraph CSV
+      S1[Load CSV]
+      S2[Generate CSV Profile]
+      S3[Analyse CSV (Agent)]
+      S4[Generate Ontology (Agent)]
+      S5a[Compile Mapping]
+      S5b[Bind Attributes]
+      S6[Populate Missing Keys]
+      S7[Transform & Persist KG]
     end
-    subgraph GEN[General Docs]
+    subgraph General
       G1[Load/Clean/Chunk]
       G2[Extract KG]
       G3[Persist]
@@ -46,10 +46,10 @@ graph TB
   end
 
   %% Persistence
-  subgraph DB[Persistence]
-    SQL[(SQLite: documents/chunks/KG)]
-    JS[(JSON KB registry)]
-    NEO[(Neo4j stub)]
+  subgraph Persistence
+    SQL[(SQLite)]
+    JS[(JSON KB Registry)]
+    NEO[(Neo4j Stub)]
   end
 
   %% LLM/Agent
@@ -58,14 +58,14 @@ graph TB
   FE --> APIR
   APIR --> KGC
   KGC --> PF
-  PF --> CSV
-  PF --> GEN
+  PF --> S1
+  PF --> G1
   S3 --> AG
   S4 --> AG
-  CSV --> SQL
-  GEN --> SQL
+  S7 --> SQL
+  G3 --> SQL
   KGC --> JS
-  KGC -. optional .-> NEO
+  KGC -.-> NEO
 ```
 
 ## Key Features
@@ -172,7 +172,6 @@ snapshot = client.get_graph_snapshot(document_id=doc_id)
 
 ## License
 MIT License – see LICENSE.txt for details.
-
 
 
 
